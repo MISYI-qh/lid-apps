@@ -16,8 +16,8 @@ jobs:
         with:
           channel: stable
           cache: true
-      - run: bash tool/setup.sh
-      - run: flutter build apk --release
+      - run: bash tool/ci_run.sh bash tool/setup.sh
+      - run: bash tool/ci_run.sh flutter build apk --release
       - run: flutter build web --release --pwa-strategy=none || flutter build web --release
       - uses: actions/upload-artifact@v4
         with:
