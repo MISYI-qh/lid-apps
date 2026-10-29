@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'auth.dart';
+import 'media.dart';
 import 'pages.dart';
 import 'store.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await MediaStore.init();
   await S.load();
   runApp(const LidApp());
 }
@@ -15,20 +17,19 @@ ThemeData _th(Brightness b) {
   final line = d ? const Color(0xFF1F1F1F) : const Color(0xFFEDEDED);
   return ThemeData(
     useMaterial3: true, brightness: b, scaffoldBackgroundColor: bg, splashFactory: NoSplash.splashFactory, highlightColor: Colors.transparent,
-    colorScheme: ColorScheme.fromSeed(seedColor: Colors.black, brightness: b).copyWith(surface: bg, onSurface: fg, primary: fg, onPrimary: bg, surfaceTint: Colors.transparent),
-    textTheme: Typography.material2021().black.apply(bodyColor: fg, displayColor: fg).copyWith(bodyMedium: TextStyle(color: fg, letterSpacing: -.1, height: 1.35)),
-    appBarTheme: AppBarTheme(backgroundColor: bg, foregroundColor: fg, elevation: 0, scrolledUnderElevation: 0, centerTitle: true),
+    colorScheme: ColorScheme.fromSeed(seedColor: Colors.black, brightness: b).copyWith(surface: bg, onSurface: fg, primary: fg, onPrimary: bg),
+    appBarTheme: AppBarTheme(backgroundColor: bg, foregroundColor: fg, elevation: 0, scrolledUnderElevation: 0, centerTitle: true, surfaceTintColor: Colors.transparent),
     bottomSheetTheme: BottomSheetThemeData(backgroundColor: bg, surfaceTintColor: Colors.transparent, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28)))),
-    dialogTheme: DialogTheme(backgroundColor: bg, surfaceTintColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
     filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: fg, foregroundColor: bg, shape: const StadiumBorder(), minimumSize: const Size(0, 48), textStyle: const TextStyle(fontWeight: FontWeight.w600))),
     outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(foregroundColor: fg, side: BorderSide(color: line, width: 1.4), shape: const StadiumBorder(), minimumSize: const Size(0, 48), textStyle: const TextStyle(fontWeight: FontWeight.w600))),
     textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: fg)),
+    switchTheme: SwitchThemeData(thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? bg : Colors.grey), trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? fg : fg.withOpacity(.12)), trackOutlineColor: WidgetStateProperty.all(Colors.transparent)),
     inputDecorationTheme: InputDecorationTheme(
         filled: true, fillColor: fg.withOpacity(.05), contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide.none),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(18), borderSide: BorderSide(color: fg.withOpacity(.5), width: 1))),
     snackBarTheme: SnackBarThemeData(behavior: SnackBarBehavior.floating, backgroundColor: fg, contentTextStyle: TextStyle(color: bg), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-    dividerTheme: DividerThemeData(color: line, thickness: 1, space: 1),
     dividerColor: line,
   );
 }
@@ -51,5 +52,20 @@ class _LidAppS extends State<LidApp> with WidgetsBindingObserver {
       builder: (_, __) => MaterialApp(
           title: 'lid', debugShowCheckedModeBanner: false,
           themeMode: S.theme == 'dark' ? ThemeMode.dark : S.theme == 'light' ? ThemeMode.light : ThemeMode.system,
-          theme: _th(Brightness.light), darkTheme: _th(Brightness.dark), home: S.meId == null ? const AuthPage() : const Shell()));
+          theme: _th(Brightness.light), darkTheme: _th(Brightness.dark),
+          builder: (ctx, child) {
+            final wide = MediaQuery.of(ctx).size.width > 700;
+            final line = Theme.of(ctx).dividerColor;
+            return Container(
+              color: Theme.of(ctx).brightness == Brightness.dark ? const Color(0xFF0A0A0A) : const Color(0xFFF7F7F7),
+              child: Center(child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(color: Theme.of(ctx).scaffoldBackgroundColor, border: wide ? Border.symmetric(vertical: BorderSide(color: line)) : null),
+                  child: ClipRect(child: child ?? const SizedBox()),
+                ),
+              )),
+            );
+          },
+          home: S.meId == null ? const AuthPage() : const Shell()));
 }

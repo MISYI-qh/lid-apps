@@ -47,7 +47,7 @@ class _RL extends State<RunnerLoader> with SingleTickerProviderStateMixin {
     return Column(mainAxisSize: MainAxisSize.min, children: [
       AnimatedBuilder(animation: a, builder: (_, __) => CustomPaint(size: Size(widget.size, widget.size), painter: _FigPainter(a.value, col))),
       AnimatedBuilder(animation: a, builder: (_, __) => CustomPaint(size: Size(widget.size * 1.6, 4), painter: _GroundPainter(a.value, col))),
-      if (widget.label != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(widget.label!)),
+      if (widget.label != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(widget.label!, style: const TextStyle(color: Colors.grey))),
     ]);
   }
 }
@@ -85,7 +85,6 @@ class _FadeS extends State<Fade> with SingleTickerProviderStateMixin {
   }
 }
 
-/// Efek tekan: mengecil sedikit saat disentuh
 class Tap extends StatefulWidget {
   final Widget child; final VoidCallback? onTap;
   const Tap({super.key, required this.child, this.onTap});
@@ -101,7 +100,6 @@ class _TapS extends State<Tap> {
       child: AnimatedScale(scale: d ? .88 : 1, duration: const Duration(milliseconds: 120), curve: Curves.easeOut, child: widget.child));
 }
 
-/// Melayang naik-turun pelan (untuk logo / keadaan kosong)
 class Float extends StatefulWidget {
   final Widget child;
   const Float(this.child, {super.key});
@@ -123,7 +121,6 @@ class Empty extends StatelessWidget {
   Widget build(BuildContext c) => Padding(padding: const EdgeInsets.all(48), child: Center(child: Fade(Column(mainAxisSize: MainAxisSize.min, children: [Float(const LidLogo(size: 56)), const SizedBox(height: 16), Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey))]))));
 }
 
-/// Layar loading: tokoh berlari
 class LoadingScreen extends StatelessWidget {
   final String? label;
   const LoadingScreen({super.key, this.label});
@@ -133,13 +130,25 @@ class LoadingScreen extends StatelessWidget {
 
 Route fadeRoute(Widget w) => PageRouteBuilder(pageBuilder: (_, __, ___) => w, transitionsBuilder: (_, a, __, ch) => FadeTransition(opacity: a, child: SlideTransition(position: Tween(begin: const Offset(0, .03), end: Offset.zero).animate(a), child: ch)));
 
+void toast(BuildContext c, String msg) {
+  if (!c.mounted) return;
+  ScaffoldMessenger.of(c).hideCurrentSnackBar();
+  ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(msg)));
+}
+
+Future<bool> confirm(BuildContext c, String title, {String? body, String? ok, bool danger = false}) async {
+  final r = await showDialog<bool>(context: c, builder: (ctx) => AlertDialog(
+        title: Text(title), content: body == null ? null : Text(body),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t('Batal', 'Cancel'))), TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text(ok ?? 'OK', style: TextStyle(color: danger ? Colors.red : null)))]));
+  return r ?? false;
+}
 
 Future<String?> pickOption(BuildContext c, String title, Map<String, String> opts, String cur) => showModalBottomSheet<String>(
-    context: c, showDragHandle: true,
-    builder: (_) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+    context: c, showDragHandle: true, isScrollControlled: true,
+    builder: (_) => SafeArea(child: ConstrainedBox(constraints: BoxConstraints(maxHeight: MediaQuery.of(c).size.height * .7), child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
           for (final e in opts.entries) ListTile(title: Text(e.value), trailing: e.key == cur ? const Ic('check', size: 20) : null, onTap: () => Navigator.pop(c, e.key)),
-        ])));
+        ])))));
 
 class Row2 extends StatelessWidget {
   final String? icon; final String title; final String? value; final VoidCallback? onTap; final bool danger;
@@ -150,9 +159,20 @@ class Row2 extends StatelessWidget {
       child: Padding(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15), child: Row(children: [
         if (icon != null) Padding(padding: const EdgeInsets.only(right: 14), child: Ic(icon!, size: 20, color: danger ? Colors.red : null)),
         Expanded(child: Text(title, style: TextStyle(fontSize: 15, color: danger ? Colors.red : null))),
-        if (value != null) Text(value!, style: const TextStyle(color: Colors.grey, fontSize: 14)),
+        if (value != null) Flexible(child: Text(value!, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.grey, fontSize: 14))),
         if (onTap != null) const Padding(padding: EdgeInsets.only(left: 6), child: Ic('chev', size: 16, color: Colors.grey)),
       ])));
+}
+
+class SwitchRow extends StatelessWidget {
+  final String? icon; final String title; final String? sub; final bool value; final ValueChanged<bool> on;
+  const SwitchRow(this.title, this.value, this.on, {super.key, this.icon, this.sub});
+  @override
+  Widget build(BuildContext c) => Padding(padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6), child: Row(children: [
+        if (icon != null) Padding(padding: const EdgeInsets.only(right: 14), child: Ic(icon!, size: 20)),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontSize: 15)), if (sub != null) Text(sub!, style: const TextStyle(color: Colors.grey, fontSize: 12.5))])),
+        Switch(value: value, onChanged: on),
+      ]));
 }
 
 class Seg extends StatelessWidget {
@@ -164,10 +184,14 @@ class Seg extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: cs.onSurface.withOpacity(.06), borderRadius: BorderRadius.circular(16)),
       child: Row(children: [for (var i = 0; i < items.length; i++) Expanded(child: GestureDetector(
-        onTap: () => on(i),
+        behavior: HitTestBehavior.opaque, onTap: () => on(i),
         child: AnimatedContainer(duration: const Duration(milliseconds: 250), curve: Curves.easeOut, padding: const EdgeInsets.symmetric(vertical: 10),
             decoration: BoxDecoration(color: sel == i ? cs.onSurface : Colors.transparent, borderRadius: BorderRadius.circular(12)),
-            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Ic(items[i].$1, size: 18, color: sel == i ? cs.surface : cs.onSurface), if (items[i].$2.isNotEmpty) ...[const SizedBox(width: 6), Text(items[i].$2, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: sel == i ? cs.surface : cs.onSurface))]])),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              if (items[i].$1.isNotEmpty) Ic(items[i].$1, size: 18, color: sel == i ? cs.surface : cs.onSurface),
+              if (items[i].$1.isNotEmpty && items[i].$2.isNotEmpty) const SizedBox(width: 6),
+              if (items[i].$2.isNotEmpty) Text(items[i].$2, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: sel == i ? cs.surface : cs.onSurface)),
+            ])),
       ))]),
     );
   }

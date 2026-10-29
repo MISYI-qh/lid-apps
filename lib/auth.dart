@@ -24,17 +24,17 @@ class _AuthS extends State<AuthPage> {
   @override
   Widget build(BuildContext c) => Scaffold(
         body: SafeArea(
-          child: ListView(padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40), children: [
+          child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 420), child: ListView(shrinkWrap: true, padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40), children: [
             const Center(child: Float(LidLogo(size: 84))),
             const SizedBox(height: 14),
             const Center(child: Text('lid', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, letterSpacing: 3))),
             const SizedBox(height: 40),
             Fade(Column(children: [
               AnimatedSize(duration: const Duration(milliseconds: 300), curve: Curves.easeOut, child: Column(children: [
-                if (reg) ...[TextField(controller: name, decoration: InputDecoration(hintText: t('Nama', 'Name'))), const SizedBox(height: 12)],
-                TextField(controller: user, autocorrect: false, decoration: const InputDecoration(hintText: 'Username')),
+                if (reg) ...[TextField(controller: name, textInputAction: TextInputAction.next, decoration: InputDecoration(hintText: t('Nama', 'Name'))), const SizedBox(height: 12)],
+                TextField(controller: user, autocorrect: false, textInputAction: TextInputAction.next, decoration: const InputDecoration(hintText: 'Username')),
                 const SizedBox(height: 12),
-                TextField(controller: pass, obscureText: !show, decoration: InputDecoration(hintText: t('Sandi', 'Password'), suffixIcon: IconBtn(show ? 'eyeoff' : 'eye', size: 20, onTap: () => setState(() => show = !show)))),
+                TextField(controller: pass, obscureText: !show, onSubmitted: (_) { if (!reg) go(); }, decoration: InputDecoration(hintText: t('Sandi', 'Password'), suffixIcon: IconBtn(show ? 'eyeoff' : 'eye', size: 20, onTap: () => setState(() => show = !show)))),
                 if (reg) ...[
                   const SizedBox(height: 12),
                   GestureDetector(
@@ -50,7 +50,7 @@ class _AuthS extends State<AuthPage> {
               const SizedBox(height: 6),
               TextButton(onPressed: () => setState(() { reg = !reg; err = null; }), child: Text(reg ? t('Sudah punya akun? Masuk', 'Have an account? Log in') : t('Belum punya akun? Daftar', 'No account? Sign up'), style: const TextStyle(color: Colors.grey))),
             ])),
-          ]),
+          ]))),
         ),
       );
 }
@@ -69,7 +69,7 @@ Future<DateTime?> pickBirth(BuildContext c, DateTime? init) {
               itemExtent: 46, perspective: .003, diameterRatio: 1.8, physics: const FixedExtentScrollPhysics(),
               controller: FixedExtentScrollController(initialItem: sel), onSelectedItemChanged: (i) => set(() => on(i)),
               childDelegate: ListWheelChildListDelegate(children: [for (final s in items) Center(child: Text(s, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w500)))])));
-      final age = ageOf(DateTime(y, m, d));
+      final age = ageOf(DateTime(y, m, d > 28 ? 28 : d));
       return SizedBox(height: 340, child: Column(children: [
         Text(t('Usia $age tahun', 'Age $age'), style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
         Expanded(child: Row(children: [

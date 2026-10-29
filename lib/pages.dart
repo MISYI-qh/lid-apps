@@ -1,9 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'auth.dart';
 import 'create.dart';
+import 'detail.dart';
 import 'icons.dart';
 import 'posts.dart';
+import 'profile.dart';
 import 'store.dart';
 import 'widgets.dart';
 
@@ -18,25 +19,30 @@ class _ShellS extends State<Shell> {
   Widget build(BuildContext c) => ListenableBuilder(listenable: S, builder: (_, __) {
         final cs = Theme.of(c).colorScheme;
         const icons = ['home', 'shuffle', 'plus', 'users', 'user'];
-        return Scaffold(
-          appBar: AppBar(
-            leading: IconBtn('search', onTap: () => Navigator.push(c, fadeRoute(const SearchPage()))),
-            title: const LidLogo(size: 30),
-            actions: [Stack(alignment: Alignment.center, children: [IconBtn('bell', onTap: () => Navigator.push(c, fadeRoute(const NotifPage()))), if (S.unread > 0) Positioned(right: 10, top: 12, child: Container(width: 8, height: 8, decoration: BoxDecoration(color: cs.onSurface, shape: BoxShape.circle, border: Border.all(color: cs.surface, width: 1.5))))])],
-          ),
-          body: Stack(children: [for (final e in [const FeedPage(), const RealPage(), const CreatePage(), const RelationsPage(), ProfilePage(S.meId!, key: ValueKey(S.meId))].asMap().entries) IgnorePointer(ignoring: i != e.key, child: AnimatedOpacity(opacity: i == e.key ? 1 : 0, duration: const Duration(milliseconds: 280), child: AnimatedSlide(offset: i == e.key ? Offset.zero : const Offset(0, .02), duration: const Duration(milliseconds: 280), curve: Curves.easeOut, child: e.value)))]),
-          bottomNavigationBar: Container(
-            decoration: BoxDecoration(border: Border(top: BorderSide(color: Theme.of(c).dividerColor))),
-            child: SafeArea(child: SizedBox(height: 58, child: Row(children: [
-              for (var k = 0; k < 5; k++) Expanded(child: GestureDetector(
-                behavior: HitTestBehavior.opaque, onTap: () => setState(() => i = k),
-                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  AnimatedScale(scale: i == k ? 1.12 : 1, duration: const Duration(milliseconds: 220), child: Ic(icons[k], size: 25, sw: i == k ? 2.3 : 1.5, color: i == k ? cs.onSurface : Colors.grey)),
-                  const SizedBox(height: 5),
-                  AnimatedContainer(duration: const Duration(milliseconds: 220), width: i == k ? 14 : 0, height: 2.5, decoration: BoxDecoration(color: cs.onSurface, borderRadius: BorderRadius.circular(2))),
-                ]),
-              )),
-            ]))),
+        final pages = <Widget>[const FeedPage(), const RealPage(), const CreatePage(), const RelationsPage(), ProfilePage(S.meId!, key: ValueKey(S.meId))];
+        return PopScope(
+          canPop: i == 0,
+          onPopInvokedWithResult: (didPop, _) { if (!didPop) setState(() => i = 0); },
+          child: Scaffold(
+            appBar: AppBar(
+              leading: IconBtn('search', onTap: () => Navigator.push(c, fadeRoute(const SearchPage()))),
+              title: const LidLogo(size: 30),
+              actions: [Stack(alignment: Alignment.center, children: [IconBtn('bell', onTap: () => Navigator.push(c, fadeRoute(const NotifPage()))), if (S.unread > 0) Positioned(right: 10, top: 12, child: Container(width: 8, height: 8, decoration: BoxDecoration(color: cs.onSurface, shape: BoxShape.circle, border: Border.all(color: cs.surface, width: 1.5))))])],
+            ),
+            body: Stack(children: [for (var k = 0; k < pages.length; k++) Positioned.fill(child: IgnorePointer(ignoring: i != k, child: AnimatedOpacity(opacity: i == k ? 1 : 0, duration: const Duration(milliseconds: 280), child: AnimatedSlide(offset: i == k ? Offset.zero : const Offset(0, .02), duration: const Duration(milliseconds: 280), curve: Curves.easeOut, child: pages[k]))))]),
+            bottomNavigationBar: Container(
+              decoration: BoxDecoration(color: cs.surface, border: Border(top: BorderSide(color: Theme.of(c).dividerColor))),
+              child: SafeArea(child: SizedBox(height: 58, child: Row(children: [
+                for (var k = 0; k < 5; k++) Expanded(child: GestureDetector(
+                  behavior: HitTestBehavior.opaque, onTap: () => setState(() => i = k),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    AnimatedScale(scale: i == k ? 1.12 : 1, duration: const Duration(milliseconds: 220), child: Ic(icons[k], size: 25, sw: i == k ? 2.3 : 1.5, color: i == k ? cs.onSurface : Colors.grey)),
+                    const SizedBox(height: 5),
+                    AnimatedContainer(duration: const Duration(milliseconds: 220), width: i == k ? 14 : 0, height: 2.5, decoration: BoxDecoration(color: cs.onSurface, borderRadius: BorderRadius.circular(2))),
+                  ]),
+                )),
+              ]))),
+            ),
           ),
         );
       });
@@ -48,17 +54,20 @@ class FeedPage extends StatefulWidget {
   State<FeedPage> createState() => _FeedS();
 }
 class _FeedS extends State<FeedPage> {
-  bool loading = true;
+  bool loading = true; int tab = 0;
   @override
   void initState() { super.initState(); Future.delayed(const Duration(milliseconds: 900), () { if (mounted) setState(() => loading = false); }); }
   @override
   Widget build(BuildContext c) => ListenableBuilder(listenable: S, builder: (_, __) {
         if (loading) return const Center(child: RunnerLoader(size: 80));
-        final l = S.feed();
-        return RefreshIndicator(
-          color: Theme.of(c).colorScheme.onSurface, onRefresh: () => Future.delayed(const Duration(milliseconds: 900), () => S.save()),
-          child: l.isEmpty ? ListView(children: [SizedBox(height: 420, child: Empty(t('Belum ada postingan', 'No posts yet')))]) : ListView.builder(physics: const AlwaysScrollableScrollPhysics(), itemCount: l.length, itemBuilder: (_, i) => PostCard(l[i], key: ValueKey(l[i]['id']), i: i)),
-        );
+        final l = S.feed(onlyFollowing: tab == 1);
+        return Column(children: [
+          Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 10), child: Seg([('', t('Untuk kamu', 'For you')), ('', t('Mengikuti', 'Following'))], tab, (i) => setState(() => tab = i))),
+          Expanded(child: RefreshIndicator(
+            color: Theme.of(c).colorScheme.onSurface, onRefresh: () => Future.delayed(const Duration(milliseconds: 900), () => S.save()),
+            child: l.isEmpty ? ListView(children: [SizedBox(height: 380, child: Empty(tab == 1 ? t('Ikuti orang untuk melihat postingannya di sini', 'Follow people to see their posts here') : t('Belum ada postingan', 'No posts yet')))]) : ListView.builder(physics: const AlwaysScrollableScrollPhysics(), itemCount: l.length, itemBuilder: (_, i) => PostCard(l[i], key: ValueKey('${l[i]['id']}$tab'), i: i)),
+          )),
+        ]);
       });
 }
 
@@ -68,12 +77,12 @@ class RealPage extends StatefulWidget {
   State<RealPage> createState() => _RealS();
 }
 class _RealS extends State<RealPage> {
-  M? p; bool loading = false;
+  M? p; bool loading = false, empty = false;
   Future<void> roll() async {
     setState(() => loading = true);
     await Future.delayed(const Duration(milliseconds: 900));
     final pool = S.realPool();
-    setState(() { p = pool.isEmpty ? null : pool[Random().nextInt(pool.length)]; loading = false; });
+    setState(() { p = pool.isEmpty ? null : pool[Random().nextInt(pool.length)]; empty = pool.isEmpty; loading = false; });
   }
   @override
   Widget build(BuildContext c) => ListenableBuilder(listenable: S, builder: (_, __) => ListView(children: [
@@ -82,7 +91,7 @@ class _RealS extends State<RealPage> {
         const SizedBox(height: 16),
         if (loading) const Padding(padding: EdgeInsets.all(48), child: Center(child: RunnerLoader())),
         if (!loading && p != null && S.posts.contains(p)) AnimatedSwitcher(duration: const Duration(milliseconds: 450), transitionBuilder: (w, a) => ScaleTransition(scale: Tween(begin: .94, end: 1.0).animate(a), child: FadeTransition(opacity: a, child: w)), child: PostCard(p!, key: ValueKey(p!['id']))),
-        if (!loading && p == null) Empty(t('Tekan tombol untuk melihat satu postingan acak', 'Press the button to see one random post')),
+        if (!loading && (p == null || !S.posts.contains(p))) Empty(empty ? t('Belum ada postingan yang masuk Real', 'No posts in Real yet') : t('Tekan tombol untuk melihat satu postingan acak', 'Press the button to see one random post')),
       ]));
 }
 
@@ -105,7 +114,7 @@ class RelationsPage extends StatelessWidget {
           for (final r in out) tile(r, [IconBtn('x', onTap: () => S.answerRel(r, false))]),
           head(t('Hubunganmu', 'Your relations')),
           if (ok.isEmpty) Empty(t('Belum ada hubungan', 'No relations yet')),
-          for (final r in ok) tile(r, [IconBtn('x', onTap: () => S.answerRel(r, false))]),
+          for (final r in ok) tile(r, [IconBtn('x', onTap: () async { if (await confirm(c, t('Putuskan hubungan?', 'Remove relation?'), ok: t('Putuskan', 'Remove'), danger: true)) S.answerRel(r, false); })]),
         ]);
       });
 }
@@ -122,94 +131,13 @@ Future<void> addRel(BuildContext c, [String? target]) async {
           const SizedBox(height: 12),
           SizedBox(width: double.infinity, child: FilledButton(onPressed: () {
             final u = S.users.where((x) => x['username'] == ctl.text.trim().toLowerCase()).toList();
-            if (u.isEmpty || u.first['id'] == S.meId) { ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(t('User tidak ditemukan', 'User not found')))); return; }
+            if (u.isEmpty || u.first['id'] == S.meId || S.blockedEither(u.first['id'], S.meId!)) { toast(c, t('User tidak ditemukan', 'User not found')); return; }
+            if (S.relBetween(S.meId!, u.first['id']) != null) { toast(c, t('Sudah ada hubungan / permintaan', 'Relation or request already exists')); return; }
             S.requestRel(u.first['id'], type); Navigator.pop(ctx);
-            ScaffoldMessenger.of(c).showSnackBar(SnackBar(content: Text(t('Permintaan dikirim, menunggu persetujuan', 'Request sent, awaiting approval'))));
+            toast(c, t('Permintaan dikirim, menunggu persetujuan', 'Request sent, awaiting approval'));
           }, child: Text(t('Kirim', 'Send')))),
         ]),
       )));
-}
-
-class ProfilePage extends StatefulWidget {
-  final String id;
-  const ProfilePage(this.id, {super.key});
-  @override
-  State<ProfilePage> createState() => _PS();
-}
-class _PS extends State<ProfilePage> {
-  int tab = 0;
-  void list(BuildContext c, String title, List<String> ids) => showModalBottomSheet(context: c, showDragHandle: true, builder: (_) => ListView(shrinkWrap: true, children: [Center(child: Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)))), for (final x in ids) ListTile(leading: Avatar(S.user(x), r: 18), title: Text(S.user(x)?['name'] ?? '?'), subtitle: Text('@${S.user(x)?['username']}'), onTap: () { Navigator.pop(c); Navigator.push(c, fadeRoute(ProfilePage(x))); })]));
-
-  @override
-  Widget build(BuildContext c) => ListenableBuilder(listenable: S, builder: (_, __) {
-        final id = widget.id, u = S.user(id);
-        if (u == null) return const Scaffold(body: SizedBox());
-        final mine = id == S.meId, showAnon = S.canSeeAnonTab(id);
-        final posts = S.postsOf(id, anon: tab == 1 && showAnon);
-        final rel = S.relBetween(S.meId!, id);
-        final body = ListView(children: [
-          Padding(padding: const EdgeInsets.fromLTRB(20, 14, 20, 12), child: Row(children: [
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(u['name'], style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -.5)), const SizedBox(height: 2), Text('@${u['username']}', style: const TextStyle(color: Colors.grey))])),
-            Avatar(u, r: 34),
-          ])),
-          if ((u['bio'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.fromLTRB(20, 0, 20, 8), child: Text(u['bio'])),
-          Padding(padding: const EdgeInsets.fromLTRB(12, 4, 12, 12), child: Row(children: [
-            for (final s in [(t('Pengikut', 'Followers'), S.followersOf(id)), (t('Mengikuti', 'Following'), S.followingOf(id)), (t('Hubungan', 'Relations'), S.relsOf(id))])
-              InkWell(onTap: () => list(c, s.$1, s.$2), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), child: Row(children: [Text('${s.$2.length} ', style: const TextStyle(fontWeight: FontWeight.w800)), Text(s.$1, style: const TextStyle(color: Colors.grey, fontSize: 14))]))),
-          ])),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Row(children: mine
-              ? [Expanded(child: OutlinedButton(onPressed: () => editProfile(c), child: Text(t('Edit profil', 'Edit profile')))), const SizedBox(width: 10), Expanded(child: OutlinedButton(onPressed: () => Navigator.push(c, fadeRoute(const SettingsPage())), child: Text(t('Pengaturan', 'Settings'))))]
-              : [Expanded(child: S.following(id) ? OutlinedButton(onPressed: () => S.toggleFollow(id), child: Text(t('Mengikuti', 'Following'))) : FilledButton(onPressed: () => S.toggleFollow(id), child: Text(t('Ikuti', 'Follow')))), const SizedBox(width: 10), Expanded(child: OutlinedButton(onPressed: rel != null ? null : () => addRel(c, id), child: Text(rel == null ? t('Hubungan', 'Relation') : rel['status'] == 'ok' ? relLabel(rel['type']) : t('Menunggu', 'Pending'))))])),
-          const SizedBox(height: 18),
-          if (showAnon) Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Seg([('grid', t('Postingan', 'Posts')), ('ghost', t('Anonim', 'Anonymous'))], tab, (i) => setState(() => tab = i))),
-          if (mine && tab == 1) Row2(t('Yang bisa melihat tab Anonim', 'Who can see Anonymous tab'), icon: 'eye', value: audLabel(u['anonVis'] ?? 'none'), onTap: () async { final v = await pickOption(c, t('Yang bisa melihat tab Anonim', 'Who can see Anonymous tab'), {for (final k in ['none', 'all', 'friend', 'best', 'partner', 'family', 'allrel']) k: audLabel(k)}, u['anonVis'] ?? 'none'); if (v != null) { u['anonVis'] = v; S.save(); } }),
-          const SizedBox(height: 8),
-          AnimatedSwitcher(duration: const Duration(milliseconds: 350), child: Column(key: ValueKey('$tab${posts.length}'), children: [if (posts.isEmpty) Empty(t('Belum ada postingan', 'No posts yet')), for (var k = 0; k < posts.length; k++) PostCard(posts[k], key: ValueKey(posts[k]['id']), i: k)])),
-        ]);
-        return mine ? body : Scaffold(appBar: AppBar(leading: IconBtn('back', onTap: () => Navigator.pop(c))), body: body);
-      });
-}
-
-void editProfile(BuildContext c) {
-  final n = TextEditingController(text: S.me['name']), b = TextEditingController(text: S.me['bio']);
-  showModalBottomSheet(isScrollControlled: true, showDragHandle: true, context: c, builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.of(ctx).viewInsets.bottom),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(controller: n, decoration: InputDecoration(hintText: t('Nama', 'Name'))), const SizedBox(height: 12),
-          TextField(controller: b, maxLines: 3, decoration: const InputDecoration(hintText: 'Bio')), const SizedBox(height: 16),
-          SizedBox(width: double.infinity, child: FilledButton(onPressed: () { if (n.text.trim().isNotEmpty) S.me['name'] = n.text.trim(); S.me['bio'] = b.text.trim(); S.save(); Navigator.pop(ctx); }, child: Text(t('Simpan', 'Save')))),
-        ]),
-      ));
-}
-
-class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
-  @override
-  Widget build(BuildContext c) => ListenableBuilder(listenable: S, builder: (_, __) {
-        final themes = {'system': t('Sistem', 'System'), 'light': t('Terang', 'Light'), 'dark': t('Gelap', 'Dark')};
-        final langs = {'system': t('Ikuti perangkat', 'Follow device'), 'id': 'Indonesia', 'en': 'English'};
-        Widget head(String s) => Padding(padding: const EdgeInsets.fromLTRB(20, 24, 20, 4), child: Text(s, style: const TextStyle(fontWeight: FontWeight.w700, color: Colors.grey, fontSize: 13)));
-        return Scaffold(
-          appBar: AppBar(title: Text(t('Pengaturan', 'Settings')), leading: IconBtn('back', onTap: () => Navigator.pop(c))),
-          body: ListView(children: [
-            head(t('Tampilan', 'Appearance')),
-            Row2(t('Tema', 'Theme'), icon: 'sliders', value: themes[S.theme], onTap: () async { final v = await pickOption(c, t('Tema', 'Theme'), themes, S.theme); if (v != null) { S.theme = v; S.save(); } }),
-            Row2(t('Bahasa', 'Language'), icon: 'globe', value: langs[S.lang], onTap: () async { final v = await pickOption(c, t('Bahasa', 'Language'), langs, S.lang); if (v != null) { S.lang = v; S.save(); } }),
-            head(t('Privasi', 'Privacy')),
-            Row2(t('Audiens post bawaan', 'Default audience'), icon: 'eye', value: audLabel(S.me['defAud'] ?? 'all'), onTap: () async { final v = await pickOption(c, t('Audiens post bawaan', 'Default audience'), {for (final k in audKeys.where((k) => k != 'pick')) k: audLabel(k)}, S.me['defAud'] ?? 'all'); if (v != null) { S.me['defAud'] = v; S.save(); } }),
-            Row2(t('Yang bisa melihat tab Anonim', 'Who can see Anonymous tab'), icon: 'ghost', value: audLabel(S.me['anonVis'] ?? 'none'), onTap: () async { final v = await pickOption(c, t('Yang bisa melihat tab Anonim', 'Who can see Anonymous tab'), {for (final k in ['none', 'all', 'friend', 'best', 'partner', 'family', 'allrel']) k: audLabel(k)}, S.me['anonVis'] ?? 'none'); if (v != null) { S.me['anonVis'] = v; S.save(); } }),
-            head(t('Akun', 'Account')),
-            Row2(t('Ganti sandi', 'Change password'), icon: 'lock', onTap: () { final p = TextEditingController(); showModalBottomSheet(context: c, isScrollControlled: true, showDragHandle: true, builder: (ctx) => Padding(padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + MediaQuery.of(ctx).viewInsets.bottom), child: Column(mainAxisSize: MainAxisSize.min, children: [TextField(controller: p, decoration: InputDecoration(hintText: t('Sandi baru', 'New password'))), const SizedBox(height: 14), SizedBox(width: double.infinity, child: FilledButton(onPressed: () { if (p.text.isNotEmpty) { S.me['pass'] = p.text; S.save(); } Navigator.pop(ctx); }, child: Text(t('Simpan', 'Save'))))]))); }),
-            Row2(t('Keluar', 'Log out'), icon: 'logout', onTap: () { S.logout(); Navigator.pushAndRemoveUntil(c, fadeRoute(const AuthPage()), (_) => false); }),
-            Row2(t('Hapus akun', 'Delete account'), icon: 'trash', danger: true, onTap: () => showDialog(context: c, builder: (ctx) => AlertDialog(title: Text(t('Hapus akun?', 'Delete account?')), content: Text(t('Semua postinganmu ikut terhapus.', 'All your posts will be deleted.')), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t('Batal', 'Cancel'))), TextButton(onPressed: () { final id = S.meId; S.posts.removeWhere((p) => p['author'] == id); S.rels.removeWhere((r) => r['a'] == id || r['b'] == id); S.follows.removeWhere((f) => f['from'] == id || f['to'] == id); S.users.removeWhere((u) => u['id'] == id); S.meId = null; S.save(); Navigator.pushAndRemoveUntil(c, fadeRoute(const AuthPage()), (_) => false); }, child: Text(t('Hapus', 'Delete'), style: const TextStyle(color: Colors.red)))]))),
-            const SizedBox(height: 36),
-            const Center(child: LidLogo(size: 34)),
-            const SizedBox(height: 8),
-            const Center(child: Text('lid · Misyi · v0.3.1', style: TextStyle(color: Colors.grey, fontSize: 12))),
-            const SizedBox(height: 30),
-          ]),
-        );
-      });
 }
 
 class SearchPage extends StatefulWidget {
@@ -218,17 +146,25 @@ class SearchPage extends StatefulWidget {
   State<SearchPage> createState() => _SearchS();
 }
 class _SearchS extends State<SearchPage> {
-  String q = '';
+  String q = ''; int tab = 0;
   @override
   Widget build(BuildContext c) {
     final k = q.trim().toLowerCase();
-    final us = k.isEmpty ? <M>[] : S.users.where((u) => u['name'].toString().toLowerCase().contains(k) || u['username'].toString().contains(k)).toList();
+    final us = k.isEmpty ? <M>[] : S.users.where((u) => u['id'] != S.meId && !S.blockedEither(u['id'], S.meId!) && (u['name'].toString().toLowerCase().contains(k) || u['username'].toString().contains(k.replaceAll('@', '')))).toList();
     final ps = k.isEmpty ? <M>[] : S.feed().where((p) => p['anon'] != true && p['text'].toString().toLowerCase().contains(k)).toList();
     return Scaffold(
       appBar: AppBar(leading: IconBtn('back', onTap: () => Navigator.pop(c)), title: TextField(autofocus: true, onChanged: (v) => setState(() => q = v), decoration: InputDecoration(hintText: t('Cari orang atau post', 'Search people or posts'), contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10))), centerTitle: false),
-      body: ListView(children: [
-        for (final u in us) ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20), leading: Avatar(u), title: Text(u['name'], style: const TextStyle(fontWeight: FontWeight.w600)), subtitle: Text('@${u['username']}'), onTap: () => Navigator.push(c, fadeRoute(ProfilePage(u['id'])))),
-        for (var k = 0; k < ps.length; k++) PostCard(ps[k], key: ValueKey(ps[k]['id']), i: k),
+      body: Column(children: [
+        Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 8), child: Seg([('users', t('Orang', 'People')), ('text', t('Postingan', 'Posts'))], tab, (i) => setState(() => tab = i))),
+        Expanded(child: k.isEmpty ? Empty(t('Ketik untuk mencari', 'Type to search')) : ListView(children: [
+          if (tab == 0) ...[
+            if (us.isEmpty) Empty(t('Tidak ada hasil', 'No results')),
+            for (final u in us) Fade(ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20), leading: Avatar(u), title: Text(u['name'], style: const TextStyle(fontWeight: FontWeight.w600)), subtitle: Text('@${u['username']}'), onTap: () => Navigator.push(c, fadeRoute(ProfilePage(u['id']))))),
+          ] else ...[
+            if (ps.isEmpty) Empty(t('Tidak ada hasil', 'No results')),
+            for (var j = 0; j < ps.length; j++) PostCard(ps[j], key: ValueKey(ps[j]['id']), i: j),
+          ],
+        ])),
       ]),
     );
   }
@@ -238,13 +174,18 @@ class NotifPage extends StatelessWidget {
   const NotifPage({super.key});
   @override
   Widget build(BuildContext c) {
-    final l = S.notifs.where((n) => n['to'] == S.meId).toList().reversed.toList();
-    for (final n in l) { n['read'] = true; }
-    WidgetsBinding.instance.addPostFrameCallback((_) => S.save());
-    String msg(M n) => {'comment': t('mengomentari postinganmu', 'commented on your post'), 'follow': t('mulai mengikutimu', 'followed you'), 'rel_req': t('mengajukan hubungan', 'sent a relation request'), 'rel_ok': t('menyetujui hubungan', 'accepted your relation')}[n['type']] ?? '';
+    final l = S.notifs.where((n) => n['to'] == S.meId && S.user(n['from']) != null).toList().reversed.toList();
+    final unreadIds = l.where((n) => n['read'] != true).toList();
+    for (final n in unreadIds) { n['read'] = true; }
+    if (unreadIds.isNotEmpty) WidgetsBinding.instance.addPostFrameCallback((_) => S.save());
+    String msg(M n) => {'comment': t('mengomentari postinganmu', 'commented on your post'), 'reply': t('membalas komentarmu', 'replied to your comment'), 'follow': t('mulai mengikutimu', 'followed you'), 'rel_req': t('mengajukan hubungan', 'sent a relation request'), 'rel_ok': t('menyetujui hubungan', 'accepted your relation')}[n['type']] ?? '';
     return Scaffold(
       appBar: AppBar(title: Text(t('Notifikasi', 'Notifications')), leading: IconBtn('back', onTap: () => Navigator.pop(c))),
-      body: l.isEmpty ? Empty(t('Belum ada notifikasi', 'No notifications')) : ListView(children: [for (var k = 0; k < l.length; k++) Fade(delay: (k > 8 ? 8 : k) * 60, ListTile(contentPadding: const EdgeInsets.symmetric(horizontal: 20), leading: Avatar(S.user(l[k]['from'])), title: Text('${S.user(l[k]['from'])?['name'] ?? '?'} ${msg(l[k])}', style: const TextStyle(fontSize: 14.5)), subtitle: Text(ago(l[k]['time']))))]),
+      body: l.isEmpty ? Empty(t('Belum ada notifikasi', 'No notifications')) : ListView(children: [for (var k = 0; k < l.length; k++) Fade(delay: (k > 8 ? 8 : k) * 60, ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20), leading: Avatar(S.user(l[k]['from'])),
+        title: Text('${S.user(l[k]['from'])?['name'] ?? '?'} ${msg(l[k])}', style: const TextStyle(fontSize: 14.5)), subtitle: Text(ago(l[k]['time'])),
+        onTap: () { final n = l[k]; if (n['post'] != null && S.post(n['post']) != null) { Navigator.push(c, fadeRoute(PostDetailPage(n['post']))); } else { Navigator.push(c, fadeRoute(ProfilePage(n['from']))); } },
+      ))]),
     );
   }
 }
