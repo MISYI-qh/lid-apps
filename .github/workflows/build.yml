@@ -17,14 +17,6 @@ jobs:
           channel: stable
           cache: true
       - run: bash tool/ci_run.sh bash tool/setup.sh
-      - name: Upgrade semua paket ke versi terbaru
-        run: |
-          flutter upgrade --force || true
-          flutter pub upgrade --major-versions
-          python3 - <<'P'
-          t=open('pubspec.yaml').read().split('dev_dependencies')[0]
-          print('::notice title=PUBSPEC::'+t.replace('%','%25').replace('\n','%0A'))
-          P
       - run: bash tool/ci_run.sh flutter build apk --release
       - run: flutter build web --release --pwa-strategy=none || flutter build web --release
       - uses: actions/upload-artifact@v7

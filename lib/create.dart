@@ -80,7 +80,7 @@ class _CP extends State<CreatePage> {
   }
 
   Future<void> pickAudio() async {
-    final r = await FilePicker.platform.pickFiles(type: FileType.audio, withData: true);
+    final r = await FilePicker.pickFiles(type: FileType.audio, withData: true);
     final f = r?.files.single;
     final bytes = f?.bytes;
     if (f == null || bytes == null) return;
