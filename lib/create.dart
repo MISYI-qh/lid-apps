@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'camera.dart';
+import 'dual.dart';
 import 'icons.dart';
 import 'media.dart';
 import 'mediaview.dart';
@@ -54,14 +55,22 @@ class _CP extends State<CreatePage> {
     final r = await Navigator.push<List<XFile>>(context, MaterialPageRoute(builder: (_) => CameraPage(video: kind == 'video')));
     if (r == null || r.isEmpty) return;
     final added = <M>[];
-    for (final x in r) { final k = await keepXFile(x, kind); fresh.add(k); added.add({'k': k, 'kind': kind}); }
+    if (r.length >= 2) {
+      final k1 = await keepXFile(r[0], kind), k2 = await keepXFile(r[1], kind);
+      fresh..add(k1)..add(k2);
+      final it = <String, dynamic>{'k': k1, 'k2': k2, 'kind': kind, 'swap': false, 'ox': .04, 'oy': .03};
+      final e = await Navigator.push<M>(context, MaterialPageRoute(builder: (_) => DualEditor(it)));
+      added.add(e ?? it);
+    } else {
+      for (final x in r) { final k = await keepXFile(x, kind); fresh.add(k); added.add({'k': k, 'kind': kind}); }
+    }
     if (mounted) setState(() => items.addAll(added));
   }
 
   Future<void> removeItem(int i) async {
-    final k = items[i]['k'] as String;
+    final ks = [items[i]['k'] as String, if (items[i]['k2'] != null) items[i]['k2'] as String];
     setState(() => items.removeAt(i));
-    await dropKeys([k]);
+    await dropKeys(ks);
   }
 
   Future<void> setAudio(String k) async {
@@ -164,11 +173,13 @@ class _CP extends State<CreatePage> {
             onReorder: (a, b) => setState(() { if (b > a) b--; items.insert(b, items.removeAt(a)); }),
             proxyDecorator: (w, _, __) => Material(color: Colors.transparent, child: w),
             itemBuilder: (_, i) => Padding(key: ValueKey(items[i]['k']), padding: const EdgeInsets.only(right: 8), child: Stack(children: [
-              ClipRRect(borderRadius: BorderRadius.circular(14), child: SizedBox(width: 82, height: 104, child: items[i]['kind'] == 'video' ? VideoThumb(items[i]['k']) : MediaImage(items[i]['k']))),
+              GestureDetector(
+                onTap: isDual(items[i]) ? () async { final e = await Navigator.push<M>(context, MaterialPageRoute(builder: (_) => DualEditor(items[i]))); if (e != null && mounted) setState(() => items[i] = e); } : null,
+                child: ClipRRect(borderRadius: BorderRadius.circular(14), child: SizedBox(width: 82, height: 104, child: isDual(items[i]) ? DualMedia(items[i]) : items[i]['kind'] == 'video' ? VideoThumb(items[i]['k']) : MediaImage(items[i]['k'])))),
               Positioned(top: 4, right: 4, child: GestureDetector(onTap: () => removeItem(i), child: Container(width: 22, height: 22, decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Center(child: Ic('x', size: 13, color: Colors.white))))),
             ])),
           ))),
-          if (items.length > 1) Padding(padding: const EdgeInsets.only(top: 2), child: Text(t('Tahan dan geser untuk mengurutkan', 'Hold and drag to reorder'), style: const TextStyle(color: Colors.grey, fontSize: 12))),
+          if (items.length > 1) Padding(padding: const EdgeInsets.only(top: 2), child: Text(t('Tahan dan geser untuk mengurutkan · ketuk media ganda untuk mengatur', 'Hold and drag to reorder · tap a dual media to arrange'), style: const TextStyle(color: Colors.grey, fontSize: 12))),
           if (audio != null) ...[
             const SizedBox(height: 14),
             Row(children: [Expanded(child: AudioTile(audio!['k'], label: audio!['back'] == true ? 'backsound' : null)), IconBtn('x', onTap: () async { final k = audio!['k'] as String; setState(() => audio = null); await dropKeys([k]); })]),

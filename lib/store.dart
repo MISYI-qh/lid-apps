@@ -45,7 +45,7 @@ M? audioOf(M p) {
   if (p['sound'] != null) return {'k': p['sound'], 'back': true};
   return null;
 }
-List<String> keysOf(M p) { final a = audioOf(p); return [for (final i in itemsOf(p)) i['k'] as String, if (a != null) a['k'] as String]; }
+List<String> keysOf(M p) { final a = audioOf(p); return [for (final i in itemsOf(p)) ...[i['k'] as String, if (i['k2'] != null) i['k2'] as String], if (a != null) a['k'] as String]; }
 
 class Store extends ChangeNotifier {
   late SharedPreferences _p;

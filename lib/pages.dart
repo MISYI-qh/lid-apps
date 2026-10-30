@@ -29,17 +29,19 @@ class _ShellS extends State<Shell> {
               title: Tap(onTap: () { if (i != 0) setState(() => i = 0); FeedPage.tick.value++; }, child: const Padding(padding: EdgeInsets.all(6), child: LidLogo(size: 30))),
               actions: [Stack(alignment: Alignment.center, children: [IconBtn('bell', onTap: () => Navigator.push(c, fadeRoute(const NotifPage()))), if (S.unread > 0) Positioned(right: 10, top: 12, child: Container(width: 8, height: 8, decoration: BoxDecoration(color: cs.onSurface, shape: BoxShape.circle, border: Border.all(color: cs.surface, width: 1.5))))])],
             ),
-            body: Stack(children: [for (var k = 0; k < pages.length; k++) Positioned.fill(child: IgnorePointer(ignoring: i != k, child: AnimatedOpacity(opacity: i == k ? 1 : 0, duration: const Duration(milliseconds: 280), child: AnimatedSlide(offset: i == k ? Offset.zero : const Offset(0, .02), duration: const Duration(milliseconds: 280), curve: Curves.easeOut, child: pages[k]))))]),
+            body: Stack(children: [for (var k = 0; k < pages.length; k++) Positioned.fill(child: IgnorePointer(ignoring: i != k, child: AnimatedOpacity(opacity: i == k ? 1 : 0, duration: const Duration(milliseconds: 280), child: AnimatedSlide(offset: i == k ? Offset.zero : const Offset(0, .02), duration: const Duration(milliseconds: 280), curve: Curves.easeOut, child: TabScope(active: i == k, child: pages[k])))))]),
             bottomNavigationBar: Container(
-              decoration: BoxDecoration(color: cs.surface, border: Border(top: BorderSide(color: Theme.of(c).dividerColor))),
-              child: SafeArea(child: SizedBox(height: 58, child: Row(children: [
+              decoration: BoxDecoration(color: cs.surface, borderRadius: const BorderRadius.vertical(top: Radius.circular(26)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(Theme.of(c).brightness == Brightness.dark ? .5 : .08), blurRadius: 24, offset: const Offset(0, -6))]),
+              child: SafeArea(child: SizedBox(height: 62, child: Row(children: [
                 for (var k = 0; k < 5; k++) Expanded(child: GestureDetector(
                   behavior: HitTestBehavior.opaque, onTap: () => setState(() => i = k),
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    AnimatedScale(scale: i == k ? 1.12 : 1, duration: const Duration(milliseconds: 220), child: Ic(icons[k], size: 25, sw: i == k ? 2.3 : 1.5, color: i == k ? cs.onSurface : Colors.grey)),
-                    const SizedBox(height: 5),
-                    AnimatedContainer(duration: const Duration(milliseconds: 220), width: i == k ? 14 : 0, height: 2.5, decoration: BoxDecoration(color: cs.onSurface, borderRadius: BorderRadius.circular(2))),
-                  ]),
+                  child: k == 2
+                      ? Center(child: AnimatedScale(scale: i == k ? 1.08 : 1, duration: const Duration(milliseconds: 220), child: Container(width: 46, height: 46, decoration: BoxDecoration(color: cs.onSurface, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: cs.onSurface.withOpacity(.35), blurRadius: 14, offset: const Offset(0, 6))]), child: Center(child: Ic('plus', size: 24, sw: 2.4, color: cs.surface)))))
+                      : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                          AnimatedScale(scale: i == k ? 1.12 : 1, duration: const Duration(milliseconds: 220), child: Ic(icons[k], size: 25, sw: i == k ? 2.3 : 1.5, color: i == k ? cs.onSurface : Colors.grey)),
+                          const SizedBox(height: 5),
+                          AnimatedContainer(duration: const Duration(milliseconds: 220), width: i == k ? 14 : 0, height: 2.5, decoration: BoxDecoration(color: cs.onSurface, borderRadius: BorderRadius.circular(2))),
+                        ]),
                 )),
               ]))),
             ),
@@ -86,7 +88,7 @@ class _FeedS extends State<FeedPage> {
           Expanded(child: Stack(children: [
             RefreshIndicator(
               color: Colors.transparent, backgroundColor: Colors.transparent, elevation: 0, onRefresh: refresh,
-              child: l.isEmpty ? ListView(controller: sc, physics: const AlwaysScrollableScrollPhysics(), children: [SizedBox(height: 380, child: Empty(tab == 1 ? t('Ikuti orang untuk melihat postingannya di sini', 'Follow people to see their posts here') : t('Belum ada postingan', 'No posts yet')))]) : ListView.builder(controller: sc, physics: const AlwaysScrollableScrollPhysics(), itemCount: l.length, itemBuilder: (_, i) => PostCard(l[i], key: ValueKey('${l[i]['id']}$tab'), i: i)),
+              child: l.isEmpty ? ListView(controller: sc, physics: const AlwaysScrollableScrollPhysics(), children: [SizedBox(height: 380, child: Empty(tab == 1 ? t('Ikuti orang untuk melihat postingannya di sini', 'Follow people to see their posts here') : t('Belum ada postingan', 'No posts yet')))]) : ListView.builder(controller: sc, padding: const EdgeInsets.only(top: 2, bottom: 28), physics: const AlwaysScrollableScrollPhysics(), itemCount: l.length, itemBuilder: (_, i) => PostCard(l[i], key: ValueKey('${l[i]['id']}$tab'), i: i)),
             ),
             AnimatedPositioned(
               duration: const Duration(milliseconds: 300), curve: Curves.easeOutBack, top: refreshing ? 8 : -110, left: 0, right: 0,

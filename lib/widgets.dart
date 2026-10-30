@@ -231,7 +231,7 @@ class Seg extends StatelessWidget {
       child: Row(children: [for (var i = 0; i < items.length; i++) Expanded(child: GestureDetector(
         behavior: HitTestBehavior.opaque, onTap: () => on(i),
         child: AnimatedContainer(duration: const Duration(milliseconds: 250), curve: Curves.easeOut, padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(color: sel == i ? cs.onSurface : Colors.transparent, borderRadius: BorderRadius.circular(12)),
+            decoration: BoxDecoration(color: sel == i ? cs.onSurface : Colors.transparent, borderRadius: BorderRadius.circular(12), boxShadow: sel == i ? [BoxShadow(color: cs.onSurface.withOpacity(.3), blurRadius: 12, offset: const Offset(0, 4))] : null),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
               if (items[i].$1.isNotEmpty) Ic(items[i].$1, size: 18, color: sel == i ? cs.surface : cs.onSurface),
               if (items[i].$1.isNotEmpty && items[i].$2.isNotEmpty) const SizedBox(width: 6),
@@ -239,5 +239,39 @@ class Seg extends StatelessWidget {
             ])),
       ))]),
     );
+  }
+}
+
+/// Dekorasi kartu premium: sudut besar, bayangan berlapis, garis tipis.
+BoxDecoration cardDeco(BuildContext c, {double radius = 26}) {
+  final dark = Theme.of(c).brightness == Brightness.dark;
+  return BoxDecoration(
+    color: dark ? const Color(0xFF121212) : Colors.white,
+    borderRadius: BorderRadius.circular(radius),
+    border: Border.all(color: dark ? Colors.white.withOpacity(.07) : Colors.black.withOpacity(.04)),
+    boxShadow: dark
+        ? [BoxShadow(color: Colors.black.withOpacity(.6), blurRadius: 26, offset: const Offset(0, 12))]
+        : [BoxShadow(color: Colors.black.withOpacity(.07), blurRadius: 28, offset: const Offset(0, 12)), BoxShadow(color: Colors.black.withOpacity(.05), blurRadius: 3, offset: const Offset(0, 1))],
+  );
+}
+
+/// Tombol aksi berbentuk pil (komentar, bagikan, dll).
+class ActionPill extends StatelessWidget {
+  final String icon; final String? label; final VoidCallback? onTap; final bool filled;
+  const ActionPill(this.icon, this.label, {super.key, this.onTap, this.filled = false});
+  @override
+  Widget build(BuildContext c) {
+    final cs = Theme.of(c).colorScheme;
+    final fg = filled ? cs.surface : cs.onSurface;
+    return Tap(onTap: onTap, child: Container(
+      padding: EdgeInsets.symmetric(horizontal: label == null ? 13 : 15, vertical: 9),
+      decoration: BoxDecoration(
+        color: filled ? cs.onSurface : cs.onSurface.withOpacity(.055), borderRadius: BorderRadius.circular(22),
+        boxShadow: filled ? [BoxShadow(color: cs.onSurface.withOpacity(.28), blurRadius: 12, offset: const Offset(0, 5))] : null),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Ic(icon, size: 19, color: fg),
+        if (label != null) ...[const SizedBox(width: 7), Text(label!, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700, color: fg))],
+      ]),
+    ));
   }
 }

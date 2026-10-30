@@ -1,6 +1,8 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'backsound.dart';
+import 'dual.dart';
 import 'icons.dart';
 import 'media.dart';
 import 'store.dart';
@@ -31,7 +33,7 @@ class _MCS extends State<MediaCarousel> {
                 padding: const EdgeInsets.only(right: 8),
                 child: Tap(
                   onTap: () => Navigator.push(c, PageRouteBuilder(opaque: false, transitionDuration: const Duration(milliseconds: 280), reverseTransitionDuration: const Duration(milliseconds: 220), pageBuilder: (_, __, ___) => MediaViewer(id: ht, items: widget.items, start: i), transitionsBuilder: (_, a, __, ch) => FadeTransition(opacity: a, child: ch))),
-                  child: Hero(tag: '${ht}_$i', child: ClipRRect(borderRadius: BorderRadius.circular(18), child: SizedBox.expand(child: it['kind'] == 'video' ? VideoThumb(it['k']) : MediaImage(it['k'])))),
+                  child: Hero(tag: '${ht}_$i', child: ClipRRect(borderRadius: BorderRadius.circular(20), child: SizedBox.expand(child: isDual(it) ? DualMedia(it) : it['kind'] == 'video' ? VideoThumb(it['k']) : MediaImage(it['k'])))),
                 ),
               );
             },
@@ -42,8 +44,8 @@ class _MCS extends State<MediaCarousel> {
 }
 
 class VideoThumb extends StatefulWidget {
-  final String k;
-  const VideoThumb(this.k, {super.key});
+  final String k; final bool overlay;
+  const VideoThumb(this.k, {super.key, this.overlay = true});
   @override
   State<VideoThumb> createState() => _VTh();
 }
@@ -71,8 +73,8 @@ class _VTh extends State<VideoThumb> {
     return Stack(fit: StackFit.expand, children: [
       Container(color: Colors.black),
       if (ok) FittedBox(fit: BoxFit.cover, clipBehavior: Clip.hardEdge, child: SizedBox(width: v!.value.size.width, height: v!.value.size.height, child: VideoPlayer(v!))),
-      Center(child: Container(width: 52, height: 52, decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle), child: const Ic('play', color: Colors.white, size: 22))),
-      if (ok) Positioned(left: 12, bottom: 10, child: Text('0:${v!.value.duration.inSeconds.toString().padLeft(2, '0')}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
+      if (widget.overlay) Center(child: Container(width: 52, height: 52, decoration: const BoxDecoration(color: Colors.black45, shape: BoxShape.circle), child: const Ic('play', color: Colors.white, size: 22))),
+      if (ok && widget.overlay) Positioned(left: 12, bottom: 10, child: Text('0:${v!.value.duration.inSeconds.toString().padLeft(2, '0')}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))),
     ]);
   }
 }
@@ -89,7 +91,9 @@ class _MVS extends State<MediaViewer> {
   late int cur = widget.start;
   double dy = 0;
   @override
-  void dispose() { pc.dispose(); super.dispose(); }
+  void initState() { super.initState(); Backsound.hold(true); }
+  @override
+  void dispose() { pc.dispose(); Backsound.hold(false); super.dispose(); }
   @override
   Widget build(BuildContext c) => Scaffold(
         backgroundColor: Colors.black.withOpacity((1 - dy.abs() / 400).clamp(0.2, 1.0)),
@@ -99,7 +103,9 @@ class _MVS extends State<MediaViewer> {
           child: Stack(children: [
             Transform.translate(offset: Offset(0, dy), child: PageView.builder(
               controller: pc, itemCount: widget.items.length, onPageChanged: (i) => setState(() => cur = i),
-              itemBuilder: (_, i) => widget.items[i]['kind'] == 'video'
+              itemBuilder: (_, i) => isDual(widget.items[i])
+                  ? ViewerDual(widget.items[i], active: i == cur)
+                  : widget.items[i]['kind'] == 'video'
                   ? ViewerVideo(widget.items[i]['k'], active: i == cur, tag: '${widget.id}_$i')
                   : InteractiveViewer(minScale: 1, maxScale: 4, child: Center(child: Hero(tag: '${widget.id}_$i', child: MediaImage(widget.items[i]['k'], fit: BoxFit.contain)))),
             )),
@@ -157,6 +163,92 @@ class _VV extends State<ViewerVideo> {
         Positioned(left: 16, right: 16, bottom: 28, child: Row(children: [
           Expanded(child: VideoProgressIndicator(p, allowScrubbing: true, colors: const VideoProgressColors(playedColor: Colors.white, bufferedColor: Colors.white24, backgroundColor: Colors.white12))),
           IconBtn(muted ? 'volumeoff' : 'volume', color: Colors.white, onTap: () => setState(() { muted = !muted; p.setVolume(muted ? 0 : 1); })),
+        ])),
+      ]),
+    );
+  }
+}
+
+/// Viewer media ganda: foto = latar + kotak kecil (ketuk kotak untuk menukar); video = dua video diputar bersamaan.
+class ViewerDual extends StatefulWidget {
+  final M it; final bool active;
+  const ViewerDual(this.it, {super.key, required this.active});
+  @override
+  State<ViewerDual> createState() => _VD();
+}
+class _VD extends State<ViewerDual> {
+  VideoPlayerController? a, b;
+  late bool swap = widget.it['swap'] == true;
+  bool muted = false, dead = false; Duration last = Duration.zero;
+  bool get video => widget.it['kind'] == 'video';
+  @override
+  void initState() {
+    super.initState();
+    if (!video) return;
+    () async {
+      try {
+        final ca = await videoController(widget.it['k']), cb = await videoController(widget.it['k2']);
+        await ca.setLooping(true); await cb.setLooping(true);
+        await ca.initialize(); await cb.initialize();
+        if (dead) { ca.dispose(); cb.dispose(); return; }
+        ca.addListener(() {
+          final p = ca.value.position;
+          if (p + const Duration(milliseconds: 800) < last && cb.value.isInitialized) { cb.seekTo(Duration.zero); }
+          last = p;
+        });
+        setState(() { a = ca; b = cb; });
+        _vol();
+        if (widget.active) { ca.play(); cb.play(); }
+      } catch (_) {}
+    }();
+  }
+  void _vol() {
+    final x = a, y = b; if (x == null || y == null) return;
+    final main = swap ? y : x, small = swap ? x : y;
+    main.setVolume(muted ? 0 : 1); small.setVolume(0);
+  }
+  @override
+  void didUpdateWidget(ViewerDual o) {
+    super.didUpdateWidget(o);
+    final x = a, y = b; if (x == null || y == null) return;
+    if (widget.active) { x.play(); y.play(); } else { x.pause(); y.pause(); }
+  }
+  @override
+  void dispose() { dead = true; a?.dispose(); b?.dispose(); super.dispose(); }
+
+  Widget inset(Widget child, double iw, double ih) => Container(
+      width: iw, height: ih,
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white, width: 2.4), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.5), blurRadius: 14, offset: const Offset(0, 5))]),
+      child: ClipRRect(borderRadius: BorderRadius.circular(13.5), child: child));
+
+  @override
+  Widget build(BuildContext c) {
+    final it = widget.it;
+    final ox = ((it['ox'] ?? .04) as num).toDouble(), oy = ((it['oy'] ?? .03) as num).toDouble();
+    if (!video) {
+      final m = M.from(it)..['swap'] = swap;
+      return Center(child: Padding(padding: const EdgeInsets.all(12), child: AspectRatio(aspectRatio: 3 / 4, child: ClipRRect(borderRadius: BorderRadius.circular(24), child: DualMedia(m, onInsetTap: () => setState(() => swap = !swap))))));
+    }
+    final x = a, y = b;
+    if (x == null || y == null || !x.value.isInitialized || !y.value.isInitialized) return const Center(child: RunnerLoader(size: 70));
+    final main = swap ? y : x, small = swap ? x : y;
+    return GestureDetector(
+      onTap: () => setState(() { if (x.value.isPlaying) { x.pause(); y.pause(); } else { x.play(); y.play(); } }),
+      child: Stack(alignment: Alignment.center, children: [
+        Center(child: AspectRatio(aspectRatio: main.value.aspectRatio, child: LayoutBuilder(builder: (_, bc) {
+          final iw = bc.maxWidth * .32, ih = iw / small.value.aspectRatio;
+          final rx = (bc.maxWidth - iw).clamp(1.0, 9999.0), ry = (bc.maxHeight - ih).clamp(1.0, 9999.0);
+          return Stack(children: [
+            Positioned.fill(child: VideoPlayer(main)),
+            Positioned(left: ox.clamp(0.0, 1.0) * rx, top: oy.clamp(0.0, 1.0) * ry, child: GestureDetector(
+              onTap: () => setState(() { swap = !swap; _vol(); }),
+              child: inset(FittedBox(fit: BoxFit.cover, clipBehavior: Clip.hardEdge, child: SizedBox(width: small.value.size.width, height: small.value.size.height, child: VideoPlayer(small))), iw, ih))),
+          ]);
+        }))),
+        AnimatedOpacity(opacity: x.value.isPlaying ? 0 : 1, duration: const Duration(milliseconds: 200), child: IgnorePointer(child: Container(width: 64, height: 64, decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Ic('play', color: Colors.white, size: 28)))),
+        Positioned(left: 16, right: 16, bottom: 28, child: Row(children: [
+          Expanded(child: VideoProgressIndicator(x, allowScrubbing: false, colors: const VideoProgressColors(playedColor: Colors.white, bufferedColor: Colors.white24, backgroundColor: Colors.white12))),
+          IconBtn(muted ? 'volumeoff' : 'volume', color: Colors.white, onTap: () => setState(() { muted = !muted; _vol(); })),
         ])),
       ]),
     );

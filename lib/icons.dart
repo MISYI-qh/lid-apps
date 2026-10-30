@@ -56,6 +56,7 @@ const _p = <String, String>{
   'reply': '<path d="M9 7 4 12l5 5M4 12h10a6 6 0 0 1 6 6"/>',
   'flash': '<path d="M13 3 5 14h6l-1 7 8-11h-6z"/>',
   'flashoff': '<path d="M13 3 5 14h6l-1 7 8-11h-6z"/><path d="M3 3l18 18"/>',
+  'swap': '<path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/>',
   'bellring': '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8M10 20a2 2 0 0 0 4 0M3 3l2 2M21 3l-2 2"/>',
 };
 
@@ -86,10 +87,11 @@ class LidLogo extends StatelessWidget {
   @override
   Widget build(BuildContext c) {
     final h = _hex(Theme.of(c).colorScheme.onSurface);
+    // Manusia lidi menyapa, setengah badan (sama dengan ikon aplikasi)
     return SvgPicture.string(
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="$h" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">'
-        '<rect x="12" y="8" width="76" height="80"/><path d="M62 8v80M12 46h76M6 92h88M34 8 22 60"/><path stroke-width="2.5" d="M20 14l-2 36"/>'
-        '<circle cx="46" cy="52" r="13"/><path stroke-width="2.5" d="M42 56q5 5 10 0M41 49v3M53 49v3M52 40l5-6"/><circle cx="24" cy="62" r="3.5"/><circle cx="44" cy="82" r="3.5"/></svg>',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="195 110 560 580" fill="none" stroke="$h" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">'
+        '<circle cx="512" cy="315" r="103"/><path d="M560 208 600 152M560 208 630 185"/><path d="M466 293v32M557 293v32"/><path d="M480 368q32 28 64 0"/>'
+        '<path d="M512 430V650"/><path d="M512 485 400 452 355 330M355 330 325 282M355 330 361 268M355 330 402 275"/><path d="M524 485 608 565 620 668"/></svg>',
         width: size, height: size);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import 'backsound.dart';
 import 'browser.dart';
 import 'create.dart';
 import 'detail.dart';
@@ -49,34 +50,37 @@ class PostCard extends StatelessWidget {
     final au = audioOf(p);
     void openProfile() { if (a != null) Navigator.push(c, fadeRoute(ProfilePage(a['id']))); }
     void openDetail({bool focus = false}) { if (!detail || focus) Navigator.push(c, fadeRoute(PostDetailPage(p['id'], focus: focus))); }
-    return Fade(delay: (i > 6 ? 6 : i) * 70, GestureDetector(
+    return BacksoundWatch(k: au != null && au['back'] == true ? au['k'] as String : null, always: detail, child: Fade(delay: (i > 6 ? 6 : i) * 70, GestureDetector(
       behavior: HitTestBehavior.opaque, onTap: detail ? null : openDetail,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(18, 16, 10, 6),
-        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Theme.of(c).dividerColor))),
+        margin: const EdgeInsets.fromLTRB(14, 7, 14, 7),
+        padding: const EdgeInsets.fromLTRB(16, 16, 8, 10),
+        decoration: cardDeco(c),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          GestureDetector(onTap: openProfile, child: Avatar(a, r: 19)),
+          GestureDetector(onTap: openProfile, child: Container(
+            decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(.14), blurRadius: 8, offset: const Offset(0, 3))]),
+            child: Avatar(a, r: 19))),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              GestureDetector(onTap: openProfile, child: Text(anon ? t('Anonim', 'Anonymous') : a?['name'] ?? '?', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15))),
+              Flexible(child: GestureDetector(onTap: openProfile, child: Text(anon ? t('Anonim', 'Anonymous') : a?['name'] ?? '?', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: -.2)))),
               const SizedBox(width: 8),
               Text(ago(p['time']) + (p['edited'] == true ? ' · ${t('diedit', 'edited')}' : ''), style: const TextStyle(fontSize: 12.5, color: Colors.grey)),
               const Spacer(),
               IconBtn('more', size: 20, onTap: () => _menu(c)),
             ]),
-            if ((p['text'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2, bottom: 10, right: 8), child: LinkText(p['text'], style: const TextStyle(fontSize: 15.5, height: 1.4))),
-            if (items.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 8), child: MediaCarousel(id: p['id'], items: items)),
-            if (au != null) Padding(padding: const EdgeInsets.only(right: 8), child: AudioTile(au['k'], label: au['back'] == true ? 'backsound' : null)),
+            if ((p['text'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2, bottom: 10, right: 8), child: LinkText(p['text'], style: const TextStyle(fontSize: 15.5, height: 1.42))),
+            if (items.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 10), child: MediaCarousel(id: p['id'], items: items)),
+            if (au != null) Padding(padding: const EdgeInsets.only(right: 8, bottom: 10), child: au['back'] == true ? BacksoundTile(au['k']) : AudioTile(au['k'])),
             Row(children: [
-              IconBtn('chat', size: 21, onTap: () => openDetail(focus: true)),
-              Text(ncom == 0 ? '' : '$ncom', style: const TextStyle(fontSize: 13, color: Colors.grey)),
-              IconBtn('share', size: 21, onTap: () => shareText(c, linkOf(p['id']))),
+              ActionPill('chat', ncom == 0 ? null : '$ncom', onTap: () => openDetail(focus: true)),
+              const SizedBox(width: 8),
+              ActionPill('share', null, onTap: () => shareText(c, linkOf(p['id']))),
             ]),
           ])),
         ]),
       ),
-    ));
+    )));
   }
 
   void _menu(BuildContext c) {

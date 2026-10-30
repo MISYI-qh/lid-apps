@@ -13,15 +13,15 @@ void main() async {
 
 ThemeData _th(Brightness b) {
   final d = b == Brightness.dark;
-  final bg = d ? Colors.black : Colors.white, fg = d ? const Color(0xFFFAFAFA) : const Color(0xFF0A0A0A);
+  final bg = d ? Colors.black : Colors.white, page = d ? Colors.black : const Color(0xFFF2F2F5), fg = d ? const Color(0xFFFAFAFA) : const Color(0xFF0A0A0A);
   final line = d ? const Color(0xFF1F1F1F) : const Color(0xFFEDEDED);
   return ThemeData(
-    useMaterial3: true, brightness: b, scaffoldBackgroundColor: bg, splashFactory: NoSplash.splashFactory, highlightColor: Colors.transparent,
+    useMaterial3: true, brightness: b, scaffoldBackgroundColor: page, splashFactory: NoSplash.splashFactory, highlightColor: Colors.transparent,
     colorScheme: ColorScheme.fromSeed(seedColor: Colors.black, brightness: b).copyWith(surface: bg, onSurface: fg, primary: fg, onPrimary: bg),
-    appBarTheme: AppBarTheme(backgroundColor: bg, foregroundColor: fg, elevation: 0, scrolledUnderElevation: 0, centerTitle: true, surfaceTintColor: Colors.transparent),
+    appBarTheme: AppBarTheme(backgroundColor: page, foregroundColor: fg, elevation: 0, scrolledUnderElevation: 0, centerTitle: true, surfaceTintColor: Colors.transparent),
     bottomSheetTheme: BottomSheetThemeData(backgroundColor: bg, surfaceTintColor: Colors.transparent, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28)))),
-    filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: fg, foregroundColor: bg, shape: const StadiumBorder(), minimumSize: const Size(0, 48), textStyle: const TextStyle(fontWeight: FontWeight.w600))),
-    outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(foregroundColor: fg, side: BorderSide(color: line, width: 1.4), shape: const StadiumBorder(), minimumSize: const Size(0, 48), textStyle: const TextStyle(fontWeight: FontWeight.w600))),
+    filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(backgroundColor: fg, foregroundColor: bg, elevation: 7, shadowColor: fg.withOpacity(d ? .25 : .45), surfaceTintColor: Colors.transparent, shape: const StadiumBorder(), minimumSize: const Size(0, 52), padding: const EdgeInsets.symmetric(horizontal: 26), textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, letterSpacing: .2))),
+    outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(foregroundColor: fg, backgroundColor: d ? Colors.white.withOpacity(.04) : Colors.white, elevation: d ? 0 : 2, shadowColor: Colors.black.withOpacity(.12), side: BorderSide(color: d ? Colors.white.withOpacity(.14) : Colors.black.withOpacity(.08), width: 1.2), shape: const StadiumBorder(), minimumSize: const Size(0, 50), textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
     textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: fg)),
     switchTheme: SwitchThemeData(thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? bg : Colors.grey), trackColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.selected) ? fg : fg.withOpacity(.12)), trackOutlineColor: WidgetStateProperty.all(Colors.transparent)),
     inputDecorationTheme: InputDecorationTheme(
