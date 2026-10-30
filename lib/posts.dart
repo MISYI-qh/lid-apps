@@ -45,6 +45,8 @@ class PostCard extends StatelessWidget {
     final anon = p['anon'] == true;
     final a = anon ? null : S.user(p['author']);
     final ncom = S.commentCount(p['id']);
+    final items = itemsOf(p);
+    final au = audioOf(p);
     void openProfile() { if (a != null) Navigator.push(c, fadeRoute(ProfilePage(a['id']))); }
     void openDetail({bool focus = false}) { if (!detail || focus) Navigator.push(c, fadeRoute(PostDetailPage(p['id'], focus: focus))); }
     return Fade(delay: (i > 6 ? 6 : i) * 70, GestureDetector(
@@ -64,9 +66,8 @@ class PostCard extends StatelessWidget {
               IconBtn('more', size: 20, onTap: () => _menu(c)),
             ]),
             if ((p['text'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2, bottom: 10, right: 8), child: LinkText(p['text'], style: const TextStyle(fontSize: 15.5, height: 1.4))),
-            if (p['type'] == 'photo' || p['type'] == 'video') Padding(padding: const EdgeInsets.only(bottom: 8), child: MediaCarousel(id: p['id'], video: p['type'] == 'video', media: List<String>.from(p['media']))),
-            if (p['type'] == 'audio') Padding(padding: const EdgeInsets.only(right: 8), child: AudioTile(p['media'][0])),
-            if (p['sound'] != null) Padding(padding: const EdgeInsets.only(right: 8), child: AudioTile(p['sound'], label: 'backsound')),
+            if (items.isNotEmpty) Padding(padding: const EdgeInsets.only(bottom: 8), child: MediaCarousel(id: p['id'], items: items)),
+            if (au != null) Padding(padding: const EdgeInsets.only(right: 8), child: AudioTile(au['k'], label: au['back'] == true ? 'backsound' : null)),
             Row(children: [
               IconBtn('chat', size: 21, onTap: () => openDetail(focus: true)),
               Text(ncom == 0 ? '' : '$ncom', style: const TextStyle(fontSize: 13, color: Colors.grey)),

@@ -3,32 +3,77 @@ import 'package:flutter/material.dart';
 import 'icons.dart';
 import 'store.dart';
 
-void drawFigure(Canvas c, Offset o, double s, Color col, double ph) {
-  final p = Paint()..color = col..style = PaintingStyle.stroke..strokeWidth = s * 0.07..strokeCap = StrokeCap.round;
-  final sw = sin(ph * 2 * pi), bob = sin(ph * 4 * pi).abs() * s * 0.05;
-  final head = Offset(o.dx, o.dy - s * 0.78 - bob);
-  c.drawCircle(head, s * 0.14, p);
-  final f = Paint()..color = col..style = PaintingStyle.stroke..strokeWidth = s * 0.03..strokeCap = StrokeCap.round;
-  c.drawArc(Rect.fromCircle(center: head.translate(s * 0.02, s * 0.03), radius: s * 0.05), 0.3, 2.5, false, f);
-  c.drawLine(head.translate(-s * 0.04, -s * 0.03), head.translate(-s * 0.04, -s * 0.01), f);
-  c.drawLine(head.translate(s * 0.06, -s * 0.03), head.translate(s * 0.06, -s * 0.01), f);
-  c.drawLine(head.translate(s * 0.06, -s * 0.14), head.translate(s * 0.11, -s * 0.2), f);
-  final neck = Offset(o.dx, o.dy - s * 0.64 - bob), hip = Offset(o.dx, o.dy - s * 0.34 - bob), sh = Offset(o.dx, o.dy - s * 0.58 - bob);
+/// Manusia lidi: mode 'run' (berlari) atau 'wave' (menyapa)
+void drawLidi(Canvas c, Size sz, Color col, {double ph = 0, String mode = 'run', double jump = 0}) {
+  final s = sz.height, cx = sz.width / 2;
+  final sw = s * 0.05;
+  final p = Paint()..color = col..style = PaintingStyle.stroke..strokeWidth = sw..strokeCap = StrokeCap.round..strokeJoin = StrokeJoin.round;
+  final run = mode == 'run';
+  final a = sin(ph * 2 * pi);
+  final bob = run ? cos(ph * 4 * pi).abs() * s * 0.03 : sin(ph * 2 * pi) * s * 0.006;
+  final lean = run ? s * 0.05 : 0.0;
+  final base = s * 0.95 - bob - jump;
+  c.drawOval(Rect.fromCenter(center: Offset(cx, s * 0.97), width: max(4.0, s * 0.34 - jump * 0.6), height: s * 0.035), Paint()..color = col.withOpacity(.1));
+  final hip = Offset(cx, base - s * 0.40), neck = Offset(cx + lean, base - s * 0.68), sh = Offset(cx + lean * .9, base - s * 0.63);
+  final head = Offset(cx + lean * 1.4, base - s * 0.80);
+  final r = s * 0.115;
+  Offset pt(Offset o, double ang, double len) => o + Offset(sin(ang) * len, cos(ang) * len);
   c.drawLine(neck, hip, p);
-  Offset limb(Offset a, double ang, double len) => a + Offset(sin(ang) * len, cos(ang) * len);
   for (final k in [1, -1]) {
-    c.drawLine(sh, limb(sh, k * sw * 0.9, s * 0.26), p);
-    c.drawLine(hip, limb(hip, -k * sw * 0.9, s * 0.36), p);
+    final ang = run ? k * a * 0.85 : k * 0.16;
+    final knee = pt(hip, ang, s * 0.2);
+    final bend = run ? 0.15 + 0.9 * max(0.0, -k * a) : 0.0;
+    final foot = pt(knee, ang - bend, s * 0.2);
+    c.drawPath(Path()..moveTo(hip.dx, hip.dy)..lineTo(knee.dx, knee.dy)..lineTo(foot.dx, foot.dy), p);
   }
+  for (final k in [1, -1]) {
+    double a1, a2;
+    if (run) { a1 = -k * a * 0.8; a2 = a1 + 0.9; }
+    else if (k == -1) { a1 = -2.3 + a * 0.1; a2 = -2.9 + a * 0.55; }
+    else { a1 = 0.22; a2 = 0.12; }
+    final el = pt(sh, a1, s * 0.16);
+    final hand = pt(el, a2, s * 0.15);
+    c.drawPath(Path()..moveTo(sh.dx, sh.dy)..lineTo(el.dx, el.dy)..lineTo(hand.dx, hand.dy), p);
+  }
+  c.drawCircle(head, r, p);
+  final f = Paint()..color = col..style = PaintingStyle.stroke..strokeWidth = sw * 0.6..strokeCap = StrokeCap.round;
+  final fx = head.dx + (run ? r * .15 : 0);
+  c.drawLine(Offset(fx - r * .38, head.dy - r * .22), Offset(fx - r * .38, head.dy + r * .02), f);
+  c.drawLine(Offset(fx + r * .38, head.dy - r * .22), Offset(fx + r * .38, head.dy + r * .02), f);
+  c.drawArc(Rect.fromCenter(center: Offset(fx, head.dy + r * .22), width: r * .7, height: r * .5), 0.35, 2.4, false, f);
+  c.drawLine(Offset(head.dx + r * .55, head.dy - r * .85), Offset(head.dx + r * .95, head.dy - r * 1.35), f);
+  c.drawLine(Offset(head.dx + r * .55, head.dy - r * .85), Offset(head.dx + r * 1.2, head.dy - r * 1.0), f);
 }
 
 class _FigPainter extends CustomPainter {
-  final double ph; final Color col;
-  _FigPainter(this.ph, this.col);
+  final double ph, jump; final Color col; final String mode;
+  _FigPainter(this.ph, this.col, {this.mode = 'run', this.jump = 0});
   @override
-  void paint(Canvas c, Size s) => drawFigure(c, Offset(s.width / 2, s.height - 4), s.height - 8, col, ph);
+  void paint(Canvas c, Size s) => drawLidi(c, s, col, ph: ph, mode: mode, jump: jump);
   @override
-  bool shouldRepaint(_FigPainter o) => o.ph != ph;
+  bool shouldRepaint(_FigPainter o) => true;
+}
+
+/// Manusia lidi interaktif: menyapa terus, ketuk untuk melompat
+class LidiFigure extends StatefulWidget {
+  final double size;
+  const LidiFigure({super.key, this.size = 90});
+  @override
+  State<LidiFigure> createState() => _LFS();
+}
+class _LFS extends State<LidiFigure> with TickerProviderStateMixin {
+  late final AnimationController a = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..repeat();
+  late final AnimationController j = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+  @override
+  void dispose() { a.dispose(); j.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext c) {
+    final col = Theme.of(c).colorScheme.onSurface;
+    return GestureDetector(
+      onTap: () => j.forward(from: 0),
+      child: AnimatedBuilder(animation: Listenable.merge([a, j]), builder: (_, __) => CustomPaint(size: Size(widget.size * 0.9, widget.size), painter: _FigPainter(a.value * 3, col, mode: 'wave', jump: sin(j.value * pi) * widget.size * 0.18))),
+    );
+  }
 }
 
 class RunnerLoader extends StatefulWidget {
@@ -38,7 +83,7 @@ class RunnerLoader extends StatefulWidget {
   State<RunnerLoader> createState() => _RL();
 }
 class _RL extends State<RunnerLoader> with SingleTickerProviderStateMixin {
-  late final AnimationController a = AnimationController(vsync: this, duration: const Duration(milliseconds: 700))..repeat();
+  late final AnimationController a = AnimationController(vsync: this, duration: const Duration(milliseconds: 800))..repeat();
   @override
   void dispose() { a.dispose(); super.dispose(); }
   @override
@@ -118,7 +163,7 @@ class Empty extends StatelessWidget {
   final String text;
   const Empty(this.text, {super.key});
   @override
-  Widget build(BuildContext c) => Padding(padding: const EdgeInsets.all(48), child: Center(child: Fade(Column(mainAxisSize: MainAxisSize.min, children: [Float(const LidLogo(size: 56)), const SizedBox(height: 16), Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey))]))));
+  Widget build(BuildContext c) => Padding(padding: const EdgeInsets.all(48), child: Center(child: Fade(Column(mainAxisSize: MainAxisSize.min, children: [const LidiFigure(size: 96), const SizedBox(height: 14), Text(text, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey))]))));
 }
 
 class LoadingScreen extends StatelessWidget {

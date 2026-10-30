@@ -1,4 +1,4 @@
-# lid v1.0.0 (Flutter: Android + Web)
+# lid v1.2.0 (Flutter: Android + Web)
 
 Produk Misyi. Satu kode untuk APK dan web. Data lokal (shared_preferences + Hive/IndexedDB).
 

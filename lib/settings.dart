@@ -36,6 +36,7 @@ class SettingsPage extends StatelessWidget {
             head(t('Tampilan', 'Appearance')),
             Row2(t('Tema', 'Theme'), icon: 'sliders', value: themes[S.theme], onTap: () async { final v = await pickOption(c, t('Tema', 'Theme'), themes, S.theme); if (v != null) { S.theme = v; S.save(); } }),
             Row2(t('Bahasa', 'Language'), icon: 'globe', value: langs[S.lang], onTap: () async { final v = await pickOption(c, t('Bahasa', 'Language'), langs, S.lang); if (v != null) { S.lang = v; S.save(); } }),
+            SwitchRow(t('Sembunyikan tombol navigasi HP', 'Hide phone navigation buttons'), S.hideNav, (v) { S.hideNav = v; S.save(); }, icon: 'eyeoff', sub: t('Geser dari tepi bawah untuk memunculkannya', 'Swipe from the bottom edge to show them')),
             head(t('Privasi', 'Privacy')),
             Row2(t('Audiens post bawaan', 'Default audience'), icon: 'eye', value: audLabel(S.me['defAud'] ?? 'all'), onTap: () async { final v = await pickOption(c, t('Audiens post bawaan', 'Default audience'), {for (final k in audKeys.where((k) => k != 'pick')) k: audLabel(k)}, S.me['defAud'] ?? 'all'); if (v != null) { S.me['defAud'] = v; S.save(); } }),
             Row2(t('Yang bisa melihat tab Anonim', 'Who can see Anonymous tab'), icon: 'ghost', value: audLabel(S.me['anonVis'] ?? 'none'), onTap: () async { final v = await pickOption(c, t('Yang bisa melihat tab Anonim', 'Who can see Anonymous tab'), {for (final k in anonKeys) k: audLabel(k)}, S.me['anonVis'] ?? 'none'); if (v != null) { S.me['anonVis'] = v; S.save(); } }),
@@ -64,7 +65,7 @@ class SettingsPage extends StatelessWidget {
             const SizedBox(height: 36),
             const Center(child: LidLogo(size: 34)),
             const SizedBox(height: 8),
-            const Center(child: Text('lid · Misyi · v1.0.0', style: TextStyle(color: Colors.grey, fontSize: 12))),
+            const Center(child: Text('lid · Misyi · v1.2.0', style: TextStyle(color: Colors.grey, fontSize: 12))),
             const SizedBox(height: 30),
           ]),
         );
@@ -98,7 +99,7 @@ class LegalPage extends StatelessWidget {
       'help': (t('Bantuan', 'Help'), t(
           'Feed: semua postingan yang boleh kamu lihat. Tab "Mengikuti" hanya dari akun yang kamu ikuti.\n\nReal: tekan tombol untuk melihat satu postingan acak. Pembuat postingan memilih apakah postingannya boleh masuk Real.\n\nBuat: pilih teks, foto, video (maks 10 detik), atau audio (maks 2 menit). Foto dan video hanya lewat kamera lid (belakang, depan, atau keduanya). Audio boleh upload atau rekam, dan bisa jadi backsound.\n\nHubungan: ajukan hubungan lewat username. Hubungan aktif setelah disetujui.\n\nLink di teks dibuka di peramban lid.\n\nPostingan bisa diedit lewat menu titik tiga.',
           'Feed: every post you may see. The "Following" tab only shows accounts you follow.\n\nReal: press the button for one random post. Authors choose whether their post can appear in Real.\n\nCreate: pick text, photo, video (max 10 s) or audio (max 2 min). Photo and video only through the lid camera (back, front or both). Audio can be uploaded or recorded and can be a backsound.\n\nRelations: request a relation by username. It becomes active once approved.\n\nLinks in text open in the lid browser.\n\nPosts can be edited from the three-dot menu.')),
-      'about': (t('Tentang lid', 'About lid'), t('lid v1.0.0\nProduk Misyi.\n\nPlatform sosial bergaya Threads dengan postingan teks, foto, video, audio, postingan anonim, Real acak, dan hubungan dua arah.', 'lid v1.0.0\nA Misyi product.\n\nA Threads-style social platform with text, photo, video and audio posts, anonymous posts, random Real and two-way relations.')),
+      'about': (t('Tentang lid', 'About lid'), t('lid v1.2.0\nProduk Misyi.\n\nPlatform sosial bergaya Threads dengan postingan teks, foto, video, audio, postingan anonim, Real acak, dan hubungan dua arah.', 'lid v1.2.0\nA Misyi product.\n\nA Threads-style social platform with text, photo, video and audio posts, anonymous posts, random Real and two-way relations.')),
     }[kind]!;
     return Scaffold(
       appBar: AppBar(title: Text(data.$1), leading: IconBtn('back', onTap: () => Navigator.pop(c))),

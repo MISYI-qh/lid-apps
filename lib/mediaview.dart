@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'icons.dart';
 import 'media.dart';
+import 'store.dart';
 import 'widgets.dart';
 
-/// Media ala Threads: ukuran tetap, bisa digeser, ketuk untuk preview layar penuh
+/// Media ala Threads: ukuran tetap, bisa digeser, campur foto + video, ketuk untuk preview layar penuh
 class MediaCarousel extends StatefulWidget {
-  final String id; final bool video; final List<String> media;
-  const MediaCarousel({super.key, required this.id, required this.video, required this.media});
+  final String id; final List<M> items;
+  const MediaCarousel({super.key, required this.id, required this.items});
   @override
   State<MediaCarousel> createState() => _MCS();
 }
@@ -23,16 +24,19 @@ class _MCS extends State<MediaCarousel> {
         final h = (bc.maxWidth * .84 * 1.2).clamp(260.0, 400.0);
         return SizedBox(height: h, child: Stack(children: [
           PageView.builder(
-            controller: pc, padEnds: false, itemCount: widget.media.length, onPageChanged: (i) => setState(() => cur = i),
-            itemBuilder: (_, i) => Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Tap(
-                onTap: () => Navigator.push(c, PageRouteBuilder(opaque: false, transitionDuration: const Duration(milliseconds: 280), reverseTransitionDuration: const Duration(milliseconds: 220), pageBuilder: (_, __, ___) => MediaViewer(id: ht, video: widget.video, media: widget.media, start: i), transitionsBuilder: (_, a, __, ch) => FadeTransition(opacity: a, child: ch))),
-                child: Hero(tag: '${ht}_$i', child: ClipRRect(borderRadius: BorderRadius.circular(18), child: SizedBox.expand(child: widget.video ? VideoThumb(widget.media[i]) : MediaImage(widget.media[i])))),
-              ),
-            ),
+            controller: pc, padEnds: false, itemCount: widget.items.length, onPageChanged: (i) => setState(() => cur = i),
+            itemBuilder: (_, i) {
+              final it = widget.items[i];
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Tap(
+                  onTap: () => Navigator.push(c, PageRouteBuilder(opaque: false, transitionDuration: const Duration(milliseconds: 280), reverseTransitionDuration: const Duration(milliseconds: 220), pageBuilder: (_, __, ___) => MediaViewer(id: ht, items: widget.items, start: i), transitionsBuilder: (_, a, __, ch) => FadeTransition(opacity: a, child: ch))),
+                  child: Hero(tag: '${ht}_$i', child: ClipRRect(borderRadius: BorderRadius.circular(18), child: SizedBox.expand(child: it['kind'] == 'video' ? VideoThumb(it['k']) : MediaImage(it['k'])))),
+                ),
+              );
+            },
           ),
-          if (widget.media.length > 1) Positioned(right: 18, top: 10, child: AnimatedSwitcher(duration: const Duration(milliseconds: 200), child: Container(key: ValueKey(cur), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)), child: Text('${cur + 1}/${widget.media.length}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))))),
+          if (widget.items.length > 1) Positioned(right: 18, top: 10, child: AnimatedSwitcher(duration: const Duration(milliseconds: 200), child: Container(key: ValueKey(cur), padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4), decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(12)), child: Text('${cur + 1}/${widget.items.length}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600))))),
         ]));
       });
 }
@@ -75,8 +79,8 @@ class _VTh extends State<VideoThumb> {
 
 /// Preview layar penuh: geser antar media, cubit untuk zoom foto, tarik ke atas/bawah untuk menutup
 class MediaViewer extends StatefulWidget {
-  final String id; final bool video; final List<String> media; final int start;
-  const MediaViewer({super.key, required this.id, required this.video, required this.media, required this.start});
+  final String id; final List<M> items; final int start;
+  const MediaViewer({super.key, required this.id, required this.items, required this.start});
   @override
   State<MediaViewer> createState() => _MVS();
 }
@@ -94,15 +98,15 @@ class _MVS extends State<MediaViewer> {
           onVerticalDragEnd: (d) { if (dy.abs() > 120 || (d.primaryVelocity ?? 0).abs() > 700) { Navigator.pop(c); } else { setState(() => dy = 0); } },
           child: Stack(children: [
             Transform.translate(offset: Offset(0, dy), child: PageView.builder(
-              controller: pc, itemCount: widget.media.length, onPageChanged: (i) => setState(() => cur = i),
-              itemBuilder: (_, i) => widget.video
-                  ? ViewerVideo(widget.media[i], active: i == cur, tag: '${widget.id}_$i')
-                  : InteractiveViewer(minScale: 1, maxScale: 4, child: Center(child: Hero(tag: '${widget.id}_$i', child: MediaImage(widget.media[i], fit: BoxFit.contain)))),
+              controller: pc, itemCount: widget.items.length, onPageChanged: (i) => setState(() => cur = i),
+              itemBuilder: (_, i) => widget.items[i]['kind'] == 'video'
+                  ? ViewerVideo(widget.items[i]['k'], active: i == cur, tag: '${widget.id}_$i')
+                  : InteractiveViewer(minScale: 1, maxScale: 4, child: Center(child: Hero(tag: '${widget.id}_$i', child: MediaImage(widget.items[i]['k'], fit: BoxFit.contain)))),
             )),
             SafeArea(child: Padding(padding: const EdgeInsets.all(6), child: Row(children: [
               IconBtn('x', color: Colors.white, onTap: () => Navigator.pop(c)),
               const Spacer(),
-              if (widget.media.length > 1) Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5), decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(14)), child: Text('${cur + 1} / ${widget.media.length}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
+              if (widget.items.length > 1) Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5), decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(14)), child: Text('${cur + 1} / ${widget.items.length}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
               const SizedBox(width: 12),
             ]))),
           ]),

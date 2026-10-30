@@ -11,8 +11,8 @@ import 'store.dart';
 import 'widgets.dart';
 
 class ProfilePage extends StatefulWidget {
-  final String id;
-  const ProfilePage(this.id, {super.key});
+  final String id; final bool embedded;
+  const ProfilePage(this.id, {super.key, this.embedded = false});
   @override
   State<ProfilePage> createState() => _PS();
 }
@@ -67,7 +67,7 @@ class _PS extends State<ProfilePage> {
           const SizedBox(height: 8),
           AnimatedSwitcher(duration: const Duration(milliseconds: 350), child: Column(key: ValueKey('$t0${posts.length}'), children: [if (posts.isEmpty) Empty(t('Belum ada postingan', 'No posts yet')), for (var k = 0; k < posts.length; k++) PostCard(posts[k], key: ValueKey(posts[k]['id']), i: k)])),
         ]);
-        return mine ? body : Scaffold(appBar: AppBar(leading: IconBtn('back', onTap: () => Navigator.pop(c)), actions: [IconBtn('more', onTap: () => userMenu(c, id))]), body: body);
+        return widget.embedded ? body : Scaffold(appBar: AppBar(leading: IconBtn('back', onTap: () => Navigator.pop(c)), actions: [if (!mine) IconBtn('more', onTap: () => userMenu(c, id))]), body: body);
       });
 }
 

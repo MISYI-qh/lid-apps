@@ -13,6 +13,7 @@ import 'platform.dart';
 import 'store.dart';
 import 'widgets.dart';
 
+/// Composer: satu postingan bisa campur teks (tanpa batas), foto, video (maks 10 dtk), dan audio (maks 2 menit).
 class CreatePage extends StatefulWidget {
   final M? edit;
   const CreatePage({super.key, this.edit});
@@ -21,82 +22,93 @@ class CreatePage extends StatefulWidget {
 }
 class _CP extends State<CreatePage> {
   final text = TextEditingController();
-  String type = 'text', aud = 'all';
+  String aud = 'all';
   bool anon = false, real = true, posting = false, recording = false;
-  List<String> media = [], picks = [];
-  String? sound;
+  List<M> items = [];
+  M? audio;
+  List<String> picks = [];
   final fresh = <String>{};
   final rec = AudioRecorder();
   int recSec = 0; Timer? rt;
-  bool recForSound = false;
 
   @override
   void initState() {
     super.initState();
     final e = widget.edit;
     if (e != null) {
-      text.text = e['text'] ?? ''; type = e['type']; aud = e['aud']; anon = e['anon'] == true; real = e['real'] == true;
-      media = List<String>.from(e['media'] ?? []); picks = List<String>.from(e['picks'] ?? []); sound = e['sound'];
+      text.text = e['text'] ?? ''; aud = e['aud']; anon = e['anon'] == true; real = e['real'] == true;
+      items = itemsOf(e); audio = audioOf(e); picks = List<String>.from(e['picks'] ?? []);
     } else { aud = S.me['defAud'] ?? 'all'; }
   }
   @override
-  void dispose() { rt?.cancel(); rec.dispose(); MediaStore.remove(fresh); super.dispose(); }
+  void dispose() { rt?.cancel(); rec.dispose(); MediaStore.remove(fresh.toList()); super.dispose(); }
 
-  Future<void> dropMedia(Iterable<String> keys) async {
+  Future<void> dropKeys(Iterable<String> keys) async {
     final k = keys.where(fresh.contains).toList();
     fresh.removeAll(k);
     await MediaStore.remove(k);
   }
 
-  Future<void> shoot() async {
-    final r = await Navigator.push<List<XFile>>(context, MaterialPageRoute(builder: (_) => CameraPage(video: type == 'video')));
+  Future<void> addMedia(String kind) async {
+    if (items.length >= 10) return toast(context, t('Maksimal 10 foto/video per postingan', 'Max 10 photos/videos per post'));
+    final r = await Navigator.push<List<XFile>>(context, MaterialPageRoute(builder: (_) => CameraPage(video: kind == 'video')));
     if (r == null || r.isEmpty) return;
-    final keys = <String>[for (final x in r) await keepXFile(x, type)];
-    await dropMedia(media);
-    fresh.addAll(keys);
-    if (mounted) setState(() => media = keys);
+    final added = <M>[];
+    for (final x in r) { final k = await keepXFile(x, kind); fresh.add(k); added.add({'k': k, 'kind': kind}); }
+    if (mounted) setState(() => items.addAll(added));
   }
 
-  Future<String?> pickAudio() async {
+  Future<void> removeItem(int i) async {
+    final k = items[i]['k'] as String;
+    setState(() => items.removeAt(i));
+    await dropKeys([k]);
+  }
+
+  Future<void> setAudio(String k) async {
+    final old = audio?['k'];
+    if (mounted) setState(() => audio = {'k': k, 'back': audio?['back'] == true});
+    if (old != null) await dropKeys([old as String]);
+  }
+
+  Future<void> pickAudio() async {
     final r = await FilePicker.platform.pickFiles(type: FileType.audio, withData: true);
     final f = r?.files.single;
     final bytes = f?.bytes;
-    if (f == null || bytes == null) return null;
+    if (f == null || bytes == null) return;
     final pl = AudioPlayer();
     try {
       await pl.setSource(BytesSource(bytes, mimeType: mimeOf('x.${f.extension ?? 'mp3'}')));
       final d = await pl.getDuration();
-      if (d != null && d.inSeconds > 120) { if (mounted) toast(context, t('Audio maksimal 2 menit', 'Audio max 2 minutes')); await pl.dispose(); return null; }
+      if (d != null && d.inSeconds > 120) { if (mounted) toast(context, t('Audio maksimal 2 menit', 'Audio max 2 minutes')); await pl.dispose(); return; }
     } catch (_) {}
     await pl.dispose();
     final k = await MediaStore.put(bytes, (f.extension ?? 'mp3').toLowerCase());
     fresh.add(k);
-    return k;
+    await setAudio(k);
   }
 
-  Future<String?> record() async {
+  Future<void> toggleRecord() async {
     if (recording) {
       rt?.cancel();
       final p = await rec.stop();
       if (mounted) setState(() => recording = false);
-      if (p == null) return null;
+      if (p == null) return;
       final b = await XFile(p).readAsBytes();
       final k = await MediaStore.put(b, kIsWeb ? 'webm' : 'm4a');
       fresh.add(k);
-      return k;
+      await setAudio(k);
+      return;
     }
-    if (!await rec.hasPermission()) { if (mounted) toast(context, t('Izin mikrofon ditolak', 'Microphone denied')); return null; }
+    if (!await rec.hasPermission()) { if (mounted) toast(context, t('Izin mikrofon ditolak', 'Microphone denied')); return; }
     final path = kIsWeb ? '' : '${await tempDirPath()}/rec_${uid()}.m4a';
     await rec.start(RecordConfig(encoder: kIsWeb ? AudioEncoder.opus : AudioEncoder.aacLc), path: path);
     setState(() { recording = true; recSec = 0; });
     rt = Timer.periodic(const Duration(seconds: 1), (_) async {
       if (!mounted) return;
       setState(() => recSec++);
-      if (recSec >= 120) { final k = await record(); if (k != null) applyRecorded(k); }
+      if (recSec >= 120) await toggleRecord();
     });
-    return null;
   }
-  void applyRecorded(String k) { if (!mounted) return; setState(() { if (recForSound) { sound = k; } else { media = [k]; } }); }
 
   Future<void> pickPeople() async {
     final others = S.users.where((u) => u['id'] != S.meId && !S.blockedEither(u['id'], S.meId!)).toList();
@@ -109,13 +121,13 @@ class _CP extends State<CreatePage> {
 
   Future<void> post() async {
     if (posting) return;
-    if (type == 'text' && text.text.trim().isEmpty) return toast(context, t('Tulis sesuatu dulu', 'Write something'));
-    if (type != 'text' && media.isEmpty) return toast(context, t('Tambahkan media dulu', 'Add media first'));
+    if (recording) await toggleRecord();
+    if (text.text.trim().isEmpty && items.isEmpty && audio == null) return toast(context, t('Tulis sesuatu atau tambahkan media', 'Write something or add media'));
     if (aud == 'pick' && picks.isEmpty) return toast(context, t('Pilih orang dulu', 'Pick people first'));
     setState(() => posting = true);
     await Future.delayed(const Duration(milliseconds: 1100));
     if (!mounted) return;
-    final d = {'type': type, 'text': text.text.trim(), 'media': media, 'sound': (type == 'audio' || type == 'video') ? null : sound, 'aud': aud, 'picks': picks, 'anon': anon, 'real': real};
+    final d = <String, dynamic>{'type': 'mixed', 'text': text.text.trim(), 'items': items, 'audio': audio, 'media': [], 'sound': null, 'aud': aud, 'picks': picks, 'anon': anon, 'real': real};
     if (widget.edit != null) {
       final old = keysOf(widget.edit!).toSet();
       widget.edit!..addAll(d)..['edited'] = true;
@@ -128,42 +140,41 @@ class _CP extends State<CreatePage> {
     S.save();
     if (!mounted) return;
     setState(() => posting = false);
-    if (widget.edit != null) { Navigator.pop(context); } else { text.clear(); setState(() { media = []; sound = null; type = 'text'; picks = []; }); toast(context, t('Terposting', 'Posted')); }
+    if (widget.edit != null) { Navigator.pop(context); } else { text.clear(); setState(() { items = []; audio = null; picks = []; }); toast(context, t('Terposting', 'Posted')); }
   }
+
+  Widget attach(String icon, String label, VoidCallback f) => Expanded(child: OutlinedButton.icon(icon: Ic(icon, size: 18), label: Text(label), onPressed: f, style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6))));
 
   @override
   Widget build(BuildContext c) {
-    final types = ['text', 'photo', 'video', 'audio'];
     return Scaffold(
       appBar: widget.edit != null ? AppBar(title: Text(t('Edit post', 'Edit post')), leading: IconBtn('back', onTap: () => Navigator.pop(c))) : null,
       body: Stack(children: [
         SafeArea(child: ListView(padding: const EdgeInsets.fromLTRB(20, 12, 20, 40), children: [
           if (widget.edit == null) Padding(padding: const EdgeInsets.only(bottom: 16), child: Text(t('Buat postingan', 'New post'), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -.5))),
-          Seg([('text', t('Teks', 'Text')), ('camera', t('Foto', 'Photo')), ('video', 'Video'), ('mic', 'Audio')], types.indexOf(type), (i) async { if (types[i] == type) return; await dropMedia(media); setState(() { type = types[i]; media = []; }); }),
-          const SizedBox(height: 16),
-          TextField(controller: text, maxLines: 6, minLines: 4, maxLength: 1000, decoration: InputDecoration(hintText: t('Apa yang kamu pikirkan?', "What's on your mind?"))),
-          const SizedBox(height: 6),
-          if (type == 'photo' || type == 'video') OutlinedButton.icon(icon: const Ic('camera', size: 20), label: Text(media.isEmpty ? t('Buka kamera lid', 'Open lid camera') : t('Ulangi (${media.length} media)', 'Retake (${media.length} media)')), onPressed: shoot),
-          if ((type == 'photo' || type == 'video') && media.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 12), child: SizedBox(height: 100, child: ListView(scrollDirection: Axis.horizontal, children: [
-            for (final k in media) Padding(padding: const EdgeInsets.only(right: 8), child: ClipRRect(borderRadius: BorderRadius.circular(14), child: SizedBox(width: 80, height: 100, child: type == 'photo' ? MediaImage(k) : VideoThumb(k)))),
-          ]))),
-          if (type == 'audio') Row(children: [
-            Expanded(child: OutlinedButton.icon(icon: const Ic('upload', size: 18), label: const Text('Upload'), onPressed: recording ? null : () async { final p = await pickAudio(); if (p != null) { await dropMedia(media); setState(() => media = [p]); } })),
-            const SizedBox(width: 10),
-            Expanded(child: OutlinedButton.icon(icon: Ic(recording && !recForSound ? 'stop' : 'mic', size: 18), label: Text(recording && !recForSound ? '$recSec/120s' : t('Rekam', 'Record')), onPressed: () async { recForSound = false; final k = await record(); if (k != null) { await dropMedia(media); applyRecorded(k); } })),
+          TextField(controller: text, maxLines: null, minLines: 5, keyboardType: TextInputType.multiline, decoration: InputDecoration(hintText: t('Apa yang kamu pikirkan?', "What's on your mind?"))),
+          const SizedBox(height: 12),
+          Row(children: [
+            attach('camera', t('Foto', 'Photo'), () => addMedia('photo')), const SizedBox(width: 8),
+            attach('video', 'Video', () => addMedia('video')), const SizedBox(width: 8),
+            attach('mic', recording ? '$recSec/120s' : 'Audio', () { if (recording) { toggleRecord(); } else { _audioSheet(c); } }),
           ]),
-          if (type == 'audio' && media.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 10), child: AudioTile(media[0])),
-          if (type == 'text' || type == 'photo') ...[
+          if (items.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 14), child: SizedBox(height: 104, child: ReorderableListView.builder(
+            scrollDirection: Axis.horizontal, buildDefaultDragHandles: true, itemCount: items.length,
+            onReorder: (a, b) => setState(() { if (b > a) b--; items.insert(b, items.removeAt(a)); }),
+            proxyDecorator: (w, _, __) => Material(color: Colors.transparent, child: w),
+            itemBuilder: (_, i) => Padding(key: ValueKey(items[i]['k']), padding: const EdgeInsets.only(right: 8), child: Stack(children: [
+              ClipRRect(borderRadius: BorderRadius.circular(14), child: SizedBox(width: 82, height: 104, child: items[i]['kind'] == 'video' ? VideoThumb(items[i]['k']) : MediaImage(items[i]['k']))),
+              Positioned(top: 4, right: 4, child: GestureDetector(onTap: () => removeItem(i), child: Container(width: 22, height: 22, decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle), child: const Center(child: Ic('x', size: 13, color: Colors.white))))),
+            ])),
+          ))),
+          if (items.length > 1) Padding(padding: const EdgeInsets.only(top: 2), child: Text(t('Tahan dan geser untuk mengurutkan', 'Hold and drag to reorder'), style: const TextStyle(color: Colors.grey, fontSize: 12))),
+          if (audio != null) ...[
             const SizedBox(height: 14),
-            Row(children: [
-              Expanded(child: OutlinedButton.icon(icon: const Ic('music', size: 18), label: Text(sound == null ? 'Backsound' : t('Ganti', 'Change')), onPressed: recording ? null : () async { final p = await pickAudio(); if (p != null) { if (sound != null) await dropMedia([sound!]); setState(() => sound = p); } })),
-              const SizedBox(width: 10),
-              Expanded(child: OutlinedButton.icon(icon: Ic(recording && recForSound ? 'stop' : 'mic', size: 18), label: Text(recording && recForSound ? '$recSec/120s' : t('Rekam', 'Record')), onPressed: () async { recForSound = true; final k = await record(); if (k != null) { if (sound != null) await dropMedia([sound!]); applyRecorded(k); } })),
-              if (sound != null) IconBtn('x', onTap: () async { await dropMedia([sound!]); setState(() => sound = null); }),
-            ]),
-            if (sound != null) Padding(padding: const EdgeInsets.only(top: 10), child: AudioTile(sound!, label: 'backsound')),
+            Row(children: [Expanded(child: AudioTile(audio!['k'], label: audio!['back'] == true ? 'backsound' : null)), IconBtn('x', onTap: () async { final k = audio!['k'] as String; setState(() => audio = null); await dropKeys([k]); })]),
+            SwitchRow(t('Jadikan backsound', 'Use as backsound'), audio!['back'] == true, (v) => setState(() => audio = {'k': audio!['k'], 'back': v})),
           ],
-          const SizedBox(height: 26),
+          const SizedBox(height: 22),
           Text(t('Tampil sebagai', 'Post as'), style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: 10),
           Seg([('user', t('Nama saya', 'My name')), ('ghost', t('Anonim', 'Anonymous'))], anon ? 1 : 0, (i) => setState(() => anon = i == 1)),
@@ -179,4 +190,9 @@ class _CP extends State<CreatePage> {
       ]),
     );
   }
+
+  void _audioSheet(BuildContext c) => showModalBottomSheet(context: c, showDragHandle: true, builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Row2(t('Upload audio (maks 2 menit)', 'Upload audio (max 2 min)'), icon: 'upload', onTap: () { Navigator.pop(ctx); pickAudio(); }),
+        Row2(t('Rekam suara (maks 2 menit)', 'Record voice (max 2 min)'), icon: 'mic', onTap: () { Navigator.pop(ctx); toggleRecord(); }),
+      ])));
 }

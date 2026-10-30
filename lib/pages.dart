@@ -19,14 +19,14 @@ class _ShellS extends State<Shell> {
   Widget build(BuildContext c) => ListenableBuilder(listenable: S, builder: (_, __) {
         final cs = Theme.of(c).colorScheme;
         const icons = ['home', 'shuffle', 'plus', 'users', 'user'];
-        final pages = <Widget>[const FeedPage(), const RealPage(), const CreatePage(), const RelationsPage(), ProfilePage(S.meId!, key: ValueKey(S.meId))];
+        final pages = <Widget>[const FeedPage(), const RealPage(), const CreatePage(), const RelationsPage(), ProfilePage(S.meId!, key: ValueKey(S.meId), embedded: true)];
         return PopScope(
           canPop: i == 0,
           onPopInvokedWithResult: (didPop, _) { if (!didPop) setState(() => i = 0); },
           child: Scaffold(
             appBar: AppBar(
               leading: IconBtn('search', onTap: () => Navigator.push(c, fadeRoute(const SearchPage()))),
-              title: const LidLogo(size: 30),
+              title: Tap(onTap: () { if (i != 0) setState(() => i = 0); FeedPage.tick.value++; }, child: const Padding(padding: EdgeInsets.all(6), child: LidLogo(size: 30))),
               actions: [Stack(alignment: Alignment.center, children: [IconBtn('bell', onTap: () => Navigator.push(c, fadeRoute(const NotifPage()))), if (S.unread > 0) Positioned(right: 10, top: 12, child: Container(width: 8, height: 8, decoration: BoxDecoration(color: cs.onSurface, shape: BoxShape.circle, border: Border.all(color: cs.surface, width: 1.5))))])],
             ),
             body: Stack(children: [for (var k = 0; k < pages.length; k++) Positioned.fill(child: IgnorePointer(ignoring: i != k, child: AnimatedOpacity(opacity: i == k ? 1 : 0, duration: const Duration(milliseconds: 280), child: AnimatedSlide(offset: i == k ? Offset.zero : const Offset(0, .02), duration: const Duration(milliseconds: 280), curve: Curves.easeOut, child: pages[k]))))]),
@@ -49,24 +49,50 @@ class _ShellS extends State<Shell> {
 }
 
 class FeedPage extends StatefulWidget {
+  static final tick = ValueNotifier<int>(0);
   const FeedPage({super.key});
   @override
   State<FeedPage> createState() => _FeedS();
 }
 class _FeedS extends State<FeedPage> {
-  bool loading = true; int tab = 0;
+  bool loading = true, refreshing = false; int tab = 0;
+  final sc = ScrollController();
+  void _onTick() => refresh();
   @override
-  void initState() { super.initState(); Future.delayed(const Duration(milliseconds: 900), () { if (mounted) setState(() => loading = false); }); }
+  void initState() {
+    super.initState();
+    FeedPage.tick.addListener(_onTick);
+    Future.delayed(const Duration(milliseconds: 900), () { if (mounted) setState(() => loading = false); });
+  }
+  @override
+  void dispose() { FeedPage.tick.removeListener(_onTick); sc.dispose(); super.dispose(); }
+  Future<void> refresh() async {
+    if (refreshing || loading || !mounted) return;
+    if (sc.hasClients && sc.offset > 0) await sc.animateTo(0, duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+    if (!mounted) return;
+    setState(() => refreshing = true);
+    await Future.delayed(const Duration(milliseconds: 1400));
+    if (!mounted) return;
+    S.save();
+    setState(() => refreshing = false);
+  }
   @override
   Widget build(BuildContext c) => ListenableBuilder(listenable: S, builder: (_, __) {
         if (loading) return const Center(child: RunnerLoader(size: 80));
+        final cs = Theme.of(c).colorScheme;
         final l = S.feed(onlyFollowing: tab == 1);
         return Column(children: [
           Padding(padding: const EdgeInsets.fromLTRB(20, 4, 20, 10), child: Seg([('', t('Untuk kamu', 'For you')), ('', t('Mengikuti', 'Following'))], tab, (i) => setState(() => tab = i))),
-          Expanded(child: RefreshIndicator(
-            color: Theme.of(c).colorScheme.onSurface, onRefresh: () => Future.delayed(const Duration(milliseconds: 900), () => S.save()),
-            child: l.isEmpty ? ListView(children: [SizedBox(height: 380, child: Empty(tab == 1 ? t('Ikuti orang untuk melihat postingannya di sini', 'Follow people to see their posts here') : t('Belum ada postingan', 'No posts yet')))]) : ListView.builder(physics: const AlwaysScrollableScrollPhysics(), itemCount: l.length, itemBuilder: (_, i) => PostCard(l[i], key: ValueKey('${l[i]['id']}$tab'), i: i)),
-          )),
+          Expanded(child: Stack(children: [
+            RefreshIndicator(
+              color: Colors.transparent, backgroundColor: Colors.transparent, elevation: 0, onRefresh: refresh,
+              child: l.isEmpty ? ListView(controller: sc, physics: const AlwaysScrollableScrollPhysics(), children: [SizedBox(height: 380, child: Empty(tab == 1 ? t('Ikuti orang untuk melihat postingannya di sini', 'Follow people to see their posts here') : t('Belum ada postingan', 'No posts yet')))]) : ListView.builder(controller: sc, physics: const AlwaysScrollableScrollPhysics(), itemCount: l.length, itemBuilder: (_, i) => PostCard(l[i], key: ValueKey('${l[i]['id']}$tab'), i: i)),
+            ),
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 300), curve: Curves.easeOutBack, top: refreshing ? 8 : -110, left: 0, right: 0,
+              child: IgnorePointer(child: Center(child: Container(padding: const EdgeInsets.fromLTRB(22, 10, 22, 8), decoration: BoxDecoration(color: cs.surface, borderRadius: BorderRadius.circular(28), border: Border.all(color: Theme.of(c).dividerColor), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 18, offset: const Offset(0, 6))]), child: const RunnerLoader(size: 46)))),
+            ),
+          ])),
         ]);
       });
 }

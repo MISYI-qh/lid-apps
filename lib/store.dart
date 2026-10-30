@@ -31,13 +31,28 @@ String audLabel(String k) => {
       'none': t('Hanya saya', 'Only me'),
     }[k] ?? k;
 String relLabel(String k) => audLabel(k);
-List<String> keysOf(M p) => [...List<String>.from(p['media'] ?? []), if (p['sound'] != null) p['sound'] as String];
+/// Isi media post (kompatibel dengan post lama): [{k, kind: photo|video}]
+List<M> itemsOf(M p) {
+  if (p['items'] != null) return [for (final e in (p['items'] as List)) M.from(e)];
+  final ty = p['type'];
+  if (ty == 'photo' || ty == 'video') return [for (final k in List<String>.from(p['media'] ?? [])) {'k': k, 'kind': ty}];
+  return [];
+}
+/// Audio post: {k, back: true jika backsound}
+M? audioOf(M p) {
+  if (p['audio'] != null) return M.from(p['audio']);
+  if (p['type'] == 'audio' && (p['media'] as List?)?.isNotEmpty == true) return {'k': p['media'][0], 'back': false};
+  if (p['sound'] != null) return {'k': p['sound'], 'back': true};
+  return null;
+}
+List<String> keysOf(M p) { final a = audioOf(p); return [for (final i in itemsOf(p)) i['k'] as String, if (a != null) a['k'] as String]; }
 
 class Store extends ChangeNotifier {
   late SharedPreferences _p;
   List<M> users = [], posts = [], rels = [], follows = [], notifs = [], comments = [], reports = [];
   String? meId;
   String lang = 'system', theme = 'system';
+  bool hideNav = false;
   String get langCode => lang == 'system' ? (PlatformDispatcher.instance.locale.languageCode == 'id' ? 'id' : 'en') : lang;
 
   Future<void> load() async {
@@ -45,7 +60,7 @@ class Store extends ChangeNotifier {
     List<M> l(String k) { try { return (jsonDecode(_p.getString(k) ?? '[]') as List).map((e) => M.from(e)).toList(); } catch (_) { return []; } }
     users = l('users'); posts = l('posts'); rels = l('rels'); follows = l('follows');
     notifs = l('notifs'); comments = l('comments'); reports = l('reports');
-    meId = _p.getString('me'); lang = _p.getString('lang') ?? 'system'; theme = _p.getString('theme') ?? 'system';
+    meId = _p.getString('me'); lang = _p.getString('lang') ?? 'system'; theme = _p.getString('theme') ?? 'system'; hideNav = _p.getBool('hideNav') ?? false;
     if (meId != null && user(meId!) == null) meId = null;
   }
 
@@ -53,7 +68,7 @@ class Store extends ChangeNotifier {
     for (final e in {'users': users, 'posts': posts, 'rels': rels, 'follows': follows, 'notifs': notifs, 'comments': comments, 'reports': reports}.entries) {
       _p.setString(e.key, jsonEncode(e.value));
     }
-    _p.setString('lang', lang); _p.setString('theme', theme);
+    _p.setString('lang', lang); _p.setString('theme', theme); _p.setBool('hideNav', hideNav);
     if (meId == null) { _p.remove('me'); } else { _p.setString('me', meId!); }
     notifyListeners();
   }
