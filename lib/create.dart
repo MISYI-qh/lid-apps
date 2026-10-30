@@ -80,10 +80,9 @@ class _CP extends State<CreatePage> {
   }
 
   Future<void> pickAudio() async {
-    final r = await FilePicker.pickFiles(type: FileType.audio, withData: true);
-    final f = r?.files.single;
-    final bytes = f?.bytes;
-    if (f == null || bytes == null) return;
+    final f = await FilePicker.pickFile(type: FileType.audio);
+    if (f == null) return;
+    final bytes = await f.readAsBytes();
     final pl = AudioPlayer();
     try {
       await pl.setSource(BytesSource(bytes, mimeType: mimeOf('x.${f.extension ?? 'mp3'}')));
