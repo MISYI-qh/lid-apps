@@ -90,7 +90,7 @@ class _DES extends State<DualEditor> {
           Padding(padding: const EdgeInsets.fromLTRB(20, 8, 20, 16), child: Row(children: [
             Expanded(child: OutlinedButton.icon(
               icon: const Ic('swap', size: 18, color: Colors.white), label: Text(t('Tukar', 'Swap'), style: const TextStyle(color: Colors.white)),
-              style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white30, width: 1.4)), onPressed: swap)),
+              style: OutlinedButton.styleFrom(backgroundColor: Colors.white12, foregroundColor: Colors.white, elevation: 0, side: const BorderSide(color: Colors.white30, width: 1.4)), onPressed: swap)),
             const SizedBox(width: 12),
             Expanded(child: FilledButton(
               style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black),

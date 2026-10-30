@@ -16,7 +16,7 @@ class CameraPage extends StatefulWidget {
 }
 class _CamS extends State<CameraPage> {
   List<CameraDescription> cams = [];
-  CameraController? ctl;
+  CameraController? ctl, ctl2;
   late String mode = widget.selfie ? 'front' : 'back';
   final got = <XFile>[];
   bool rec = false, flash = false, busy = false; int sec = 0; Timer? tm;
@@ -37,13 +37,14 @@ class _CamS extends State<CameraPage> {
     }();
   }
   @override
-  void dispose() { tm?.cancel(); ctl?.dispose(); super.dispose(); }
+  void dispose() { tm?.cancel(); ctl?.dispose(); ctl2?.dispose(); super.dispose(); }
 
   Future<void> open(CameraLensDirection d) async {
     final cam = find(d) ?? cams.first;
-    final old = ctl;
-    if (mounted) setState(() => ctl = null);
+    final old = ctl, old2 = ctl2;
+    if (mounted) setState(() { ctl = null; ctl2 = null; });
     await old?.dispose();
+    await old2?.dispose();
     final n = CameraController(cam, ResolutionPreset.max, enableAudio: widget.video);
     try {
       await n.initialize();
@@ -51,6 +52,58 @@ class _CamS extends State<CameraPage> {
       flash = false;
       if (mounted) { setState(() => ctl = n); } else { await n.dispose(); }
     } catch (e) { if (mounted) setState(() => err = t('Kamera tidak bisa dibuka. Izinkan akses kamera.', 'Cannot open camera. Allow camera access.')); }
+  }
+
+  /// Mode Keduanya: buka kamera belakang + depan SEKALIGUS (butuh dukungan kamera ganda dari HP).
+  /// Bila HP tidak mendukung, otomatis turun ke mode berurutan (satu ketukan).
+  Future<void> openBoth() async {
+    final b = find(CameraLensDirection.back), f = find(CameraLensDirection.front);
+    if (b == null || f == null || b == f) { await open(CameraLensDirection.back); return; }
+    final old = ctl, old2 = ctl2;
+    if (mounted) setState(() { ctl = null; ctl2 = null; });
+    await old?.dispose();
+    await old2?.dispose();
+    CameraController? c1, c2;
+    try {
+      c1 = CameraController(b, ResolutionPreset.high, enableAudio: widget.video);
+      await c1.initialize();
+      c2 = CameraController(f, ResolutionPreset.medium, enableAudio: false);
+      await c2.initialize();
+      if (!c1.value.isInitialized || c1.value.hasError || !c2.value.isInitialized || c2.value.hasError) throw StateError('no concurrent');
+      flash = false;
+      if (mounted) { setState(() { ctl = c1; ctl2 = c2; }); } else { await c1.dispose(); await c2.dispose(); }
+    } catch (_) {
+      try { await c2?.dispose(); } catch (_) {}
+      try { await c1?.dispose(); } catch (_) {}
+      await open(CameraLensDirection.back);
+      if (mounted) toast(context, t('HP ini tidak bisa membuka dua kamera sekaligus. Dipakai mode otomatis berurutan.', 'This phone cannot open two cameras at once. Using automatic sequential mode.'));
+    }
+  }
+
+  Future<void> shutterDual(CameraController a, CameraController b) async {
+    try {
+      if (!widget.video) {
+        final r = await Future.wait([a.takePicture(), b.takePicture()]).timeout(const Duration(seconds: 8));
+        if (mounted) Navigator.pop(context, <XFile>[r[0], r[1]]);
+        return;
+      }
+      if (!rec) {
+        await Future.wait([a.startVideoRecording(), b.startVideoRecording()]);
+        setState(() { rec = true; sec = 0; });
+        tm = Timer.periodic(const Duration(seconds: 1), (_) { setState(() => sec++); if (sec >= 10) shutter(); });
+      } else {
+        tm?.cancel();
+        final r = await Future.wait([a.stopVideoRecording(), b.stopVideoRecording()]);
+        setState(() => rec = false);
+        if (mounted) Navigator.pop(context, <XFile>[r[0], r[1]]);
+      }
+    } catch (_) {
+      tm?.cancel(); rec = false;
+      final o = ctl2; if (mounted) setState(() => ctl2 = null);
+      try { await o?.dispose(); } catch (_) {}
+      await open(CameraLensDirection.back);
+      if (mounted) toast(context, t('Dua kamera sekaligus gagal. Dipakai mode otomatis berurutan, coba lagi.', 'Dual capture failed. Using automatic sequential mode, try again.'));
+    }
   }
 
   Future<void> toggleFlash() async {
@@ -62,7 +115,9 @@ class _CamS extends State<CameraPage> {
     final c = ctl; if (c == null || busy) return;
     busy = true;
     try {
-      if (widget.video) {
+      final c2 = ctl2;
+      if (mode == 'both' && c2 != null) { await shutterDual(c, c2); }
+      else if (widget.video) {
         if (!rec) {
           await c.startVideoRecording();
           setState(() { rec = true; sec = 0; });
@@ -80,6 +135,11 @@ class _CamS extends State<CameraPage> {
     if (mode == 'both' && got.length == 1) {
       if (!widget.video) { try { firstThumb = await f.readAsBytes(); } catch (_) {} }
       await open(CameraLensDirection.front);
+      if (!widget.video && mounted && ctl != null) {
+        await Future.delayed(const Duration(milliseconds: 700));
+        try { got.add(await ctl!.takePicture()); } catch (_) {}
+        if (mounted) Navigator.pop(context, got);
+      }
     }
     else if (mounted) Navigator.pop(context, got);
   }
@@ -87,7 +147,7 @@ class _CamS extends State<CameraPage> {
   Future<void> setMode(String v) async {
     if (rec || busy || v == mode) return;
     mode = v; got.clear(); firstThumb = null;
-    await open(v == 'front' ? CameraLensDirection.front : CameraLensDirection.back);
+    if (v == 'both') { await openBoth(); } else { await open(v == 'front' ? CameraLensDirection.front : CameraLensDirection.back); }
   }
 
   Widget chip(String v, String label) {
@@ -115,7 +175,7 @@ class _CamS extends State<CameraPage> {
           if (mode == 'both') Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(16)),
-            child: Text(second ? '${t('Depan', 'Front')} 2/2' : '${t('Belakang', 'Back')} 1/2', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+            child: Text(ctl2 != null ? t('Belakang + Depan', 'Back + Front') : second ? '${t('Depan', 'Front')} 2/2' : '${t('Belakang', 'Back')} 1/2', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
           ),
           const Spacer(),
           IconBtn(flash ? 'flash' : 'flashoff', color: Colors.white, onTap: ready ? toggleFlash : null),
@@ -130,7 +190,10 @@ class _CamS extends State<CameraPage> {
                   onScaleStart: (_) => baseZoom = zoom,
                   onScaleUpdate: (d) async { final z = (baseZoom * d.scale).clamp(minZ, maxZ); zoom = z; try { await ctl!.setZoomLevel(z); } catch (_) {} },
                   child: Center(child: CameraPreview(ctl!))),
-                if (second) Positioned(left: 14, top: 14, width: 92, height: 122, child: Container(
+                if (ctl2 != null && ctl2!.value.isInitialized) Positioned(left: 14, top: 14, width: 92, height: 122, child: Container(
+                  decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white, width: 2.2), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.5), blurRadius: 12)], color: Colors.black),
+                  child: ClipRRect(borderRadius: BorderRadius.circular(13.5), child: FittedBox(fit: BoxFit.cover, clipBehavior: Clip.hardEdge, child: SizedBox(width: 92, height: 92 / ctl2!.value.aspectRatio, child: CameraPreview(ctl2!)))))),
+                if (second && ctl2 == null) Positioned(left: 14, top: 14, width: 92, height: 122, child: Container(
                   decoration: BoxDecoration(borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white, width: 2.2), boxShadow: [BoxShadow(color: Colors.black.withOpacity(.5), blurRadius: 12)], color: Colors.black),
                   child: ClipRRect(borderRadius: BorderRadius.circular(13.5), child: firstThumb != null
                       ? Image.memory(firstThumb!, fit: BoxFit.cover)

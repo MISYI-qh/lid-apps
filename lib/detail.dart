@@ -16,6 +16,7 @@ class _PDS extends State<PostDetailPage> {
   final ctl = TextEditingController();
   final fn = FocusNode();
   M? replyTo;
+  final open = <String>{};
   @override
   void initState() { super.initState(); if (widget.focus) WidgetsBinding.instance.addPostFrameCallback((_) => fn.requestFocus()); }
   @override
@@ -24,11 +25,16 @@ class _PDS extends State<PostDetailPage> {
   void send(M p) {
     final x = ctl.text.trim();
     if (x.isEmpty) return;
+    if (replyTo != null) {
+      String? id = replyTo!['id'];
+      while (id != null) { open.add(id); id = S.comments.where((e) => e['id'] == id).map((e) => e['parent'] as String?).firstOrNull; }
+    }
     S.addComment(p, x, parent: replyTo);
     ctl.clear(); setState(() => replyTo = null);
   }
 
-  Widget commentTile(BuildContext c, M p, M cm, {bool reply = false, bool last = false}) {
+  Widget commentTile(BuildContext c, M p, M cm, {int depth = 0}) {
+    final reply = depth > 0;
     final u = S.user(cm['by']);
     final mine = cm['by'] == S.meId;
     final cs = Theme.of(c).colorScheme;
@@ -52,6 +58,7 @@ class _PDS extends State<PostDetailPage> {
           const SizedBox(width: 8),
           Text(ago(cm['time']) + (cm['edited'] == true ? ' · ${t('diedit', 'edited')}' : ''), style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ]),
+        if (depth >= 3) Padding(padding: const EdgeInsets.only(top: 2), child: Text('↳ ${S.user(S.comments.where((e) => e['id'] == cm['parent']).firstOrNull?['by'])?['name'] ?? ''}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11.5, color: Colors.grey, fontWeight: FontWeight.w600))),
         const SizedBox(height: 3),
         LinkText(cm['text'], style: const TextStyle(fontSize: 14.5, height: 1.4)),
         const SizedBox(height: 4),
@@ -63,20 +70,57 @@ class _PDS extends State<PostDetailPage> {
         ]),
       ]),
     );
-    final r = reply ? 15.0 : 18.0;
-    return Fade(Stack(clipBehavior: Clip.none, children: [
-      if (reply) Positioned(left: 33, top: -8, bottom: last ? null : 0, height: last ? 34 : null, child: Container(width: 2, decoration: BoxDecoration(color: cs.onSurface.withOpacity(.1), borderRadius: BorderRadius.circular(2)))),
-      Padding(
-        padding: EdgeInsets.fromLTRB(reply ? 52 : 14, 7, 14, 5),
-        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          GestureDetector(onTap: u == null ? null : () => Navigator.push(c, fadeRoute(ProfilePage(u['id']))), child: Container(
-              decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(.14), blurRadius: 8, offset: const Offset(0, 3))]),
-              child: Avatar(u, r: reply ? 14 : 17))),
-          const SizedBox(width: 9),
-          Expanded(child: bubble),
-        ]),
+    final ar = depth == 0 ? 17.0 : depth == 1 ? 14.0 : 12.0;
+    return Fade(Padding(
+      padding: EdgeInsets.fromLTRB(depth == 0 ? 14 : 6, 7, 12, 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        GestureDetector(onTap: u == null ? null : () => Navigator.push(c, fadeRoute(ProfilePage(u['id']))), child: Container(
+            decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(.14), blurRadius: 8, offset: const Offset(0, 3))]),
+            child: Avatar(u, r: ar))),
+        const SizedBox(width: 8),
+        Expanded(child: bubble),
+      ]),
+    ));
+  }
+
+  int _desc(String id) {
+    var n = 0;
+    for (final x in S.comments) { if (x['parent'] == id) { n += 1 + _desc(x['id']); } }
+    return n;
+  }
+
+  /// Satu komentar + seluruh balasannya (bertingkat tanpa batas, bisa dilipat, indentasi dibatasi 3 tingkat).
+  Widget thread(BuildContext c, M p, M cm, int depth) {
+    final cs = Theme.of(c).colorScheme;
+    final kids = S.commentsOf(p['id'], parent: cm['id']);
+    final isOpen = open.contains(cm['id']);
+    final n = kids.isEmpty ? 0 : _desc(cm['id']);
+    final nd = depth >= 3 ? 3 : depth + 1;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      commentTile(c, p, cm, depth: depth),
+      if (kids.isNotEmpty) Padding(
+        padding: EdgeInsets.only(left: depth == 0 ? 50 : 36, top: 0, bottom: 2),
+        child: Tap(onTap: () => setState(() => isOpen ? open.remove(cm['id']) : open.add(cm['id'])), child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 22, height: 2, decoration: BoxDecoration(color: cs.onSurface.withOpacity(.25), borderRadius: BorderRadius.circular(2))),
+            const SizedBox(width: 8),
+            Text(isOpen ? t('Sembunyikan balasan', 'Hide replies') : '${t('Lihat', 'View')} $n ${t('balasan', n == 1 ? 'reply' : 'replies')}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: Colors.grey)),
+            const SizedBox(width: 4),
+            AnimatedRotation(turns: isOpen ? .25 : 0, duration: const Duration(milliseconds: 200), child: const Ic('chev', size: 14, color: Colors.grey)),
+          ]),
+        )),
       ),
-    ]));
+      if (kids.isNotEmpty && isOpen)
+        depth >= 3
+            ? Column(children: [for (final k in kids) thread(c, p, k, nd)])
+            : Container(
+                margin: EdgeInsets.only(left: depth == 0 ? 31 : 20),
+                padding: const EdgeInsets.only(left: 0),
+                decoration: BoxDecoration(border: Border(left: BorderSide(color: cs.onSurface.withOpacity(.12), width: 2))),
+                child: Column(children: [for (final k in kids) thread(c, p, k, nd)]),
+              ),
+    ]);
   }
 
   void _edit(BuildContext c, M cm) {
@@ -107,10 +151,7 @@ class _PDS extends State<PostDetailPage> {
                 Container(padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3), decoration: BoxDecoration(color: Theme.of(c).colorScheme.onSurface.withOpacity(.08), borderRadius: BorderRadius.circular(10)), child: Text('${S.commentCount(p['id'])}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800))),
               ])),
               if (top.isEmpty) Empty(t('Belum ada komentar', 'No comments yet')),
-              for (final cm in top) ...[
-                commentTile(c, p, cm),
-                for (final (j, r) in S.commentsOf(p['id'], parent: cm['id']).indexed) commentTile(c, p, r, reply: true, last: j == S.commentsOf(p['id'], parent: cm['id']).length - 1),
-              ],
+              for (final cm in top) thread(c, p, cm, 0),
               const SizedBox(height: 24),
             ])),
             Container(
